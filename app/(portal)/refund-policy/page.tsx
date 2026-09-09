@@ -1,0 +1,2 @@
+import { PageHeader } from "@/components/PageHeader";
+export default function Page() { return <><PageHeader title="Política de reembolso" description="Reglas simuladas de reversión y balance." /><section className="card"><p className="lead">Los reembolsos del sandbox se registran mediante transacciones compensatorias. Nunca se modifica el balance sin una entrada contable verificable.</p><h3>Alcance</h3><p className="muted">Documento demostrativo. Debe ser revisado por profesionales antes de un despliegue comercial.</p></section></>; }

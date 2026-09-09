@@ -1,0 +1,5 @@
+import { PageHeader } from "@/components/PageHeader";
+import { SimpleTable } from "@/components/SimpleTable";
+import { affiliates } from "@/lib/demo-data";
+import { money } from "@/lib/format";
+export default function AffiliatesPage() { return <><PageHeader title="Programa de afiliados" description="Enlaces, clics, conversiones, comisiones y ranking sandbox." /><div className="grid four" style={{ marginBottom: 18 }}><div className="card"><span className="muted">Tu código</span><h3>MATPRO</h3></div><div className="card"><span className="muted">Clics</span><h3>1,284</h3></div><div className="card"><span className="muted">Conversiones</span><h3>84</h3></div><div className="card"><span className="muted">Balance</span><h3>US$845.60</h3></div></div><div className="card" style={{ marginBottom: 18 }}><label>Enlace de referido</label><input readOnly value="https://demo.local/register?ref=MATPRO" /></div><SimpleTable headers={["Código", "Afiliado", "Clics", "Conversiones", "Comisión"]} rows={affiliates.map((item) => [item.code, item.name, item.clicks, item.conversions, money(item.commission)])} /></>; }

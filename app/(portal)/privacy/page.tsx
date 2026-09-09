@@ -1,0 +1,2 @@
+import { PageHeader } from "@/components/PageHeader";
+export default function Page() { return <><PageHeader title="Política de privacidad" description="Tratamiento de datos dentro del modo demo." /><section className="card"><p className="lead">La aplicación de demostración no requiere datos reales. En producción deben aplicarse minimización de datos, cifrado, control de acceso, retención limitada y cumplimiento normativo.</p><h3>Alcance</h3><p className="muted">Documento demostrativo. Debe ser revisado por profesionales antes de un despliegue comercial.</p></section></>; }

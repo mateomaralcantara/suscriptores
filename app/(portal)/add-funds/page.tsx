@@ -1,0 +1,3 @@
+import { PageHeader } from "@/components/PageHeader";
+import { SandboxForm } from "@/components/SandboxForm";
+export default function AddFundsPage() { return <><PageHeader title="Agregar fondos" description="Stripe Test Mode, tarjeta sandbox, transferencia simulada, cupón y crédito administrativo." /><div className="grid four" style={{ marginBottom: 18 }}>{[["US$50","2%"],["US$100","4%"],["US$500","6%"],["US$2,000","8%"]].map(([amount, bonus]) => <div className="card" key={amount}><span className="muted">Depósito</span><h3>{amount}</h3><strong>Bono {bonus}</strong></div>)}</div><SandboxForm kind="funds" /></>; }
