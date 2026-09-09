@@ -3,6 +3,9 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env-backup/
 .vercel/
 .DS_Store
 npm-debug.log*
+REPORTE-ENV-SEGURO.txt
+datos.txt
