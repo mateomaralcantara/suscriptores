@@ -1,12 +1,12 @@
-export const sandboxHeaders = {
+export const apiHeaders = {
   "content-type": "application/json; charset=utf-8",
-  "x-growth-mode": "sandbox",
+  "cache-control": "no-store",
 };
 
 export function json(data: unknown, init: ResponseInit = {}) {
   return Response.json(data, {
     ...init,
-    headers: { ...sandboxHeaders, ...(init.headers ?? {}) },
+    headers: { ...apiHeaders, ...(init.headers ?? {}) },
   });
 }
 
@@ -16,4 +16,8 @@ export async function safeBody(request: Request) {
   } catch {
     return {};
   }
+}
+
+export function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unknown error";
 }
