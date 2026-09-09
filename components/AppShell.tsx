@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Topbar } from "@/components/Topbar";
-import { DemoBanner } from "@/components/DemoBanner";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -9,7 +8,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="main-wrap">
         <Topbar />
-        <main className="content"><DemoBanner />{children}</main>
+        <main className="content">{children}</main>
       </div>
     </div>
   );
