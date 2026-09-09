@@ -7,5 +7,8 @@ node_modules/
 .vercel/
 .DS_Store
 npm-debug.log*
+*.log
+next-panic-*.log
+*.backup-*
 REPORTE-ENV-SEGURO.txt
 datos.txt
