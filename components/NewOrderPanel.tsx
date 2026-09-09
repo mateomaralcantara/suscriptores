@@ -1,69 +1,135 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { orderPlatforms, orderServices } from "@/lib/order-services";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import type { OrderService } from "@/lib/order-services";
+import { orderPlatforms } from "@/lib/order-services";
 
 export function NewOrderPanel() {
+  const router = useRouter();
+  const [services, setServices] = useState<OrderService[]>([]);
+  const [ordersEnabled, setOrdersEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [platform, setPlatform] = useState("All");
   const [search, setSearch] = useState("");
-  const [serviceId, setServiceId] = useState(orderServices[0].id);
-  const [quantity, setQuantity] = useState(orderServices[0].min);
-  const [link, setLink] = useState("https://example.com/campaign/demo");
+  const [serviceId, setServiceId] = useState("");
+  const [quantity, setQuantity] = useState(0);
+  const [link, setLink] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/v1/services", { cache: "no-store" })
+      .then(async (response) => {
+        const result = await response.json() as {
+          success?: boolean;
+          services?: OrderService[];
+          ordersEnabled?: boolean;
+          error?: string;
+        };
+        if (!response.ok || !result.success) throw new Error(result.error || "No fue posible cargar los servicios.");
+        if (!active) return;
+        const list = result.services ?? [];
+        setServices(list);
+        setOrdersEnabled(Boolean(result.ordersEnabled));
+        if (list[0]) {
+          setServiceId(list[0].id);
+          setQuantity(list[0].min);
+        }
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "No fue posible cargar los servicios.");
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const filteredServices = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return orderServices.filter((service) => {
+    return services.filter((service) => {
       const matchesPlatform = platform === "All" || service.platform === platform;
-      const matchesSearch = !term || `${service.id} ${service.name} ${service.description}`.toLowerCase().includes(term);
+      const matchesSearch = !term || `${service.id} ${service.name} ${service.description} ${service.category}`.toLowerCase().includes(term);
       return matchesPlatform && matchesSearch;
     });
-  }, [platform, search]);
+  }, [services, platform, search]);
 
-  const selected = orderServices.find((service) => service.id === serviceId) ?? filteredServices[0] ?? orderServices[0];
-  const charge = Math.max(0, (quantity / 1000) * selected.rate);
+  const selected = services.find((service) => service.id === serviceId) ?? filteredServices[0] ?? null;
+  const charge = selected ? Math.max(0, (quantity / 1000) * selected.rate) : 0;
 
   function selectPlatform(nextPlatform: string) {
     setPlatform(nextPlatform);
-    const first = orderServices.find((service) => nextPlatform === "All" || service.platform === nextPlatform);
+    const first = services.find((service) => nextPlatform === "All" || service.platform === nextPlatform);
     if (first) {
       setServiceId(first.id);
       setQuantity(first.min);
     }
+    setMessage("");
+    setError("");
   }
 
   function selectService(nextId: string) {
-    const next = orderServices.find((service) => service.id === nextId);
+    const next = services.find((service) => service.id === nextId);
     if (!next) return;
     setServiceId(next.id);
     setQuantity(next.min);
     setMessage("");
+    setError("");
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (quantity < selected.min || quantity > selected.max) {
-      setMessage(`La cantidad debe estar entre ${selected.min.toLocaleString()} y ${selected.max.toLocaleString()}.`);
+    if (!selected) return;
+    if (!ordersEnabled) {
+      setError("Los pedidos reales aún no están habilitados en el servidor.");
       return;
     }
-    setMessage(`Pedido sandbox creado: ${selected.id} · US$${charge.toFixed(4)}. No se envió a un proveedor real.`);
+    if (quantity < selected.min || quantity > selected.max) {
+      setError(`La cantidad debe estar entre ${selected.min.toLocaleString()} y ${selected.max.toLocaleString()}.`);
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage("");
+    setError("");
+    try {
+      const idempotencyKey = typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `order-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      const response = await fetch("/api/v1/orders", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ serviceId: selected.id, link, quantity, idempotencyKey }),
+      });
+      const result = await response.json() as {
+        success?: boolean;
+        error?: string;
+        order?: { publicId?: string };
+        orderId?: string;
+      };
+      if (!response.ok || !result.success) throw new Error(result.error || "No fue posible crear el pedido.");
+      const publicId = result.order?.publicId;
+      setMessage(publicId ? `Pedido ${publicId} creado correctamente.` : "Pedido creado correctamente.");
+      if (publicId) {
+        router.push(`/orders/${encodeURIComponent(publicId)}`);
+        router.refresh();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No fue posible crear el pedido.");
+    } finally {
+      setSubmitting(false);
+    }
   }
+
+  if (loading) return <div className="card">Cargando catálogo del proveedor...</div>;
+  if (!selected) return <div className="card"><strong>No hay servicios disponibles.</strong>{error ? <div className="notice">{error}</div> : null}</div>;
 
   return (
     <div className="order-workspace">
-      <section className="affiliate-strip">
-        <strong>Affiliate commission rate is now 5%!</strong>
-        <span>Referral</span>
-      </section>
-
       <section className="platform-tabs" aria-label="Filtrar por plataforma">
         {orderPlatforms.map((item) => (
-          <button
-            className={platform === item ? "platform-tab active" : "platform-tab"}
-            key={item}
-            onClick={() => selectPlatform(item)}
-            type="button"
-          >
+          <button className={platform === item ? "platform-tab active" : "platform-tab"} key={item} onClick={() => selectPlatform(item)} type="button">
             {item}
           </button>
         ))}
@@ -72,87 +138,72 @@ export function NewOrderPanel() {
       <form className="card order-card" onSubmit={submit}>
         <div className="order-search-row">
           <div className="field">
-            <label htmlFor="service-search">Search</label>
-            <input
-              id="service-search"
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by ID, platform or service"
-              value={search}
-            />
+            <label htmlFor="service-search">Buscar</label>
+            <input id="service-search" onChange={(event) => setSearch(event.target.value)} placeholder="ID, categoría o servicio" value={search} />
           </div>
           <div className="field">
-            <label htmlFor="category">Category</label>
-            <select id="category" onChange={(event) => selectPlatform(event.target.value)} value={platform}>
+            <label htmlFor="platform">Plataforma</label>
+            <select id="platform" onChange={(event) => selectPlatform(event.target.value)} value={platform}>
               {orderPlatforms.map((item) => <option key={item}>{item}</option>)}
             </select>
           </div>
         </div>
 
         <div className="field full">
-          <label htmlFor="service">Service</label>
+          <label htmlFor="service">Servicio</label>
           <select id="service" onChange={(event) => selectService(event.target.value)} value={selected.id}>
             {filteredServices.map((service) => (
               <option key={service.id} value={service.id}>
-                {service.icon} {service.id} - {service.name} [{service.quality}] [{service.speed}] {service.refillDays ? `[Refill: ${service.refillDays} Days]` : "[No Refill]"} - ${service.rate.toFixed(3)} per 1000{service.isNew ? " · NEW" : ""}
+                {service.icon} {service.id} - {service.name} - US${service.rate.toFixed(4)} / 1000
               </option>
             ))}
           </select>
-          <small className="result-count">{filteredServices.length} services shown · API-ready data model</small>
+          <small className="result-count">{filteredServices.length} servicios disponibles</small>
         </div>
 
         <div className="service-summary">
           <div><span>ID</span><strong>{selected.id}</strong></div>
-          <div><span>Platform</span><strong>{selected.platform}</strong></div>
-          <div><span>Rate</span><strong>${selected.rate.toFixed(3)} / 1000</strong></div>
-          <div><span>Average time</span><strong>{selected.averageTime}</strong></div>
+          <div><span>Plataforma</span><strong>{selected.platform}</strong></div>
+          <div><span>Tarifa</span><strong>US${selected.rate.toFixed(4)} / 1000</strong></div>
+          <div><span>Refill / Cancelación</span><strong>{selected.refill ? "Refill" : "Sin refill"} · {selected.cancel ? "Cancelable" : "No cancelable"}</strong></div>
         </div>
 
         <div className="field full">
-          <label>Description</label>
+          <label>Descripción</label>
           <div className="service-description">{selected.description}</div>
         </div>
 
         <div className="form-grid">
           <div className="field full">
-            <label htmlFor="link">Link</label>
-            <input id="link" onChange={(event) => setLink(event.target.value)} required type="url" value={link} />
+            <label htmlFor="link">URL objetivo</label>
+            <input id="link" onChange={(event) => setLink(event.target.value)} placeholder="https://..." required type="url" value={link} />
           </div>
           <div className="field">
-            <label htmlFor="quantity">Quantity</label>
-            <input
-              id="quantity"
-              max={selected.max}
-              min={selected.min}
-              onChange={(event) => setQuantity(Number(event.target.value))}
-              required
-              type="number"
-              value={quantity}
-            />
-            <small>Min: {selected.min.toLocaleString()} - Max: {selected.max.toLocaleString()}</small>
+            <label htmlFor="quantity">Cantidad</label>
+            <input id="quantity" max={selected.max} min={selected.min} onChange={(event) => setQuantity(Number(event.target.value))} required type="number" value={quantity} />
+            <small>Min: {selected.min.toLocaleString()} · Max: {selected.max.toLocaleString()}</small>
           </div>
           <div className="field">
-            <label>Average time</label>
-            <input readOnly value={selected.averageTime} />
+            <label>Categoría</label>
+            <input readOnly value={selected.category} />
           </div>
           <div className="field full charge-field">
-            <label>Charge</label>
+            <label>Cargo estimado</label>
             <div className="charge-value">US${charge.toFixed(4)}</div>
           </div>
         </div>
 
         <div className="order-actions">
-          <button className="btn primary submit-order" type="submit">Submit sandbox order</button>
-          <button className="btn" onClick={() => setMessage("")} type="button">Clear notice</button>
+          <button className="btn primary submit-order" disabled={submitting || !ordersEnabled} type="submit">
+            {submitting ? "Procesando..." : ordersEnabled ? "Crear pedido" : "Pedidos deshabilitados"}
+          </button>
+          <button className="btn" onClick={() => { setMessage(""); setError(""); }} type="button">Limpiar aviso</button>
         </div>
 
+        {!ordersEnabled ? <div className="notice">El catálogo es real, pero el servidor mantiene los pedidos bloqueados hasta configurar Supabase y activar SMM_LIVE_ORDERS_ENABLED=true.</div> : null}
         {message ? <div className="toast">{message}</div> : null}
-        <p className="sandbox-note">CLASSROOM / SANDBOX: this interface is ready to consume an approved provider API, but no real provider is enabled.</p>
+        {error ? <div className="notice">{error}</div> : null}
       </form>
-
-      <footer className="panel-footer">
-        <span>Growth Reseller Lab © Copyright. All Rights Reserved.</span>
-        <span>Terms &amp; Policy · FAQ · We Accept: VISA / MasterCard (sandbox)</span>
-      </footer>
     </div>
   );
 }
