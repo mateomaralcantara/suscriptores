@@ -1,12 +1,12 @@
-import { NewOrderPanel } from "@/components/NewOrderPanel";
 import { PageHeader } from "@/components/PageHeader";
+import { NewOrderPanel } from "@/components/NewOrderPanel";
 
 export default function NewOrderPage() {
   return (
     <>
       <PageHeader
-        title="New order"
-        description="Search, filter, calculate and submit orders through the sandbox provider workflow."
+        title="Nuevo pedido"
+        description="Selecciona un servicio del proveedor conectado. El precio mostrado incluye el margen configurado y el cargo se reserva antes de enviar el pedido."
       />
       <NewOrderPanel />
     </>
