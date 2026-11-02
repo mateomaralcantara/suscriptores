@@ -1,9 +1,11 @@
 import { PageHeader } from "@/components/PageHeader";
+import { requireAdmin } from "@/lib/supabase-server";
 import { getSmmBalance, getSmmServices, isSmmConfigured, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProvidersPage() {
+  await requireAdmin();
   if (!isSmmConfigured()) {
     return (
       <>

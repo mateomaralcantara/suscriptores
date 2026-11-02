@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureProfileForUser, getUserFromRequest, listTransactionsForProfile } from "@/lib/supabase-server";
-import { errorMessage } from "@/lib/api";
+import { internalError } from "@/lib/api";
 
 export async function GET(request: Request) {
   const user = await getUserFromRequest(request);
@@ -11,6 +11,6 @@ export async function GET(request: Request) {
     const transactions = await listTransactionsForProfile(profile.id);
     return NextResponse.json({ success: true, data: transactions });
   } catch (error) {
-    return NextResponse.json({ success: false, error: errorMessage(error) }, { status: 500 });
+    return internalError("transactions", error);
   }
 }

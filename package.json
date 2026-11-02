@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "node --test tests/unit/*.test.mjs tests/integration/*.test.mjs tests/e2e/*.test.mjs",
-    "validate": "npm run typecheck && npm run lint && npm run test && npm run build"
+    "validate": "npm run typecheck && npm run lint && npm run test && npm run build && npm run test:api",
+    "test:api": "node --test tests/api/*.test.mjs",
+    "test:db": "bash tests/db/run.sh"
   },
   "dependencies": {
     "next": "16.4.3",

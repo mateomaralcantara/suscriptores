@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 export const ACCESS_COOKIE = "gr_access_token";
 export const REFRESH_COOKIE = "gr_refresh_token";
@@ -6,6 +7,7 @@ export const REFRESH_COOKIE = "gr_refresh_token";
 export type SupabaseUser = {
   id: string;
   email?: string;
+  email_confirmed_at?: string | null;
   user_metadata?: Record<string, unknown>;
 };
 
@@ -173,6 +175,14 @@ export function isAdminEmail(email?: string | null) {
   return allowed.includes(email.toLowerCase());
 }
 
+/**
+ * Admin access requires an ADMIN_EMAILS match on a *confirmed* email; otherwise anyone
+ * could sign up with an admin address while email confirmation is disabled.
+ */
+export function isAdminUser(user: Pick<SupabaseUser, "email" | "email_confirmed_at"> | null | undefined) {
+  return Boolean(user?.email_confirmed_at) && isAdminEmail(user?.email);
+}
+
 export function isSupabaseConfigured() {
   return Boolean(process.env.SUPABASE_URL?.trim() && process.env.SUPABASE_ANON_KEY?.trim());
 }
@@ -229,7 +239,7 @@ export async function ensureProfileForUser(user: SupabaseUser) {
       auth_user_id: user.id,
       email: user.email ?? `${user.id}@unknown.local`,
       full_name: fullName,
-      role: isAdminEmail(user.email) ? "admin" : "client",
+      role: isAdminUser(user) ? "admin" : "client",
     }),
   });
   return created[0];
@@ -264,4 +274,12 @@ export async function listTransactionsForProfile(profileId: string) {
   return serviceRoleRest<TransactionRow[]>(
     `transactions?user_id=eq.${encodeURIComponent(profileId)}&select=*&order=created_at.desc&limit=200`,
   );
+}
+
+/** Server-side guard for admin pages. Call it in every page that reads privileged data. */
+export async function requireAdmin() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (!isAdminUser(user)) redirect("/dashboard");
+  return user;
 }

@@ -12,7 +12,8 @@ import {
   smmLiveOrdersEnabled,
   SmmPanelError,
 } from "@/lib/providers/smm-panel";
-import { errorMessage } from "@/lib/api";
+import { errorMessage, internalError, readJsonObject } from "@/lib/api";
+import { isHttpUrl, orderCostMinor } from "@/lib/order-status";
 
 type ReservationRow = {
   order_id: string;
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
     const orders = await listOrdersForProfile(profile.id);
     return NextResponse.json({ success: true, data: orders });
   } catch (error) {
-    return NextResponse.json({ success: false, error: errorMessage(error) }, { status: 500 });
+    return internalError("orders", error);
   }
 }
 
@@ -48,7 +49,9 @@ export async function POST(request: Request) {
   let reservedOrderId: string | null = null;
 
   try {
-    const body = await request.json() as {
+    const parsed = await readJsonObject(request);
+    if (!parsed) return NextResponse.json({ success: false, error: "El cuerpo debe ser un objeto JSON válido." }, { status: 400 });
+    const body = parsed as {
       serviceId?: string | number;
       link?: string;
       quantity?: number;
@@ -60,7 +63,7 @@ export async function POST(request: Request) {
     const serviceId = String(body.serviceId ?? "").trim();
     const link = String(body.link ?? "").trim();
     const quantity = Number(body.quantity);
-    const idempotencyKey = String(body.idempotencyKey ?? "").trim();
+    const idempotencyKey = String(request.headers.get("idempotency-key") ?? body.idempotencyKey ?? "").trim().slice(0, 200);
 
     if (!serviceId || !link || !Number.isInteger(quantity) || quantity <= 0 || !idempotencyKey) {
       return NextResponse.json(
@@ -68,10 +71,8 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    try {
-      new URL(link);
-    } catch {
-      return NextResponse.json({ success: false, error: "La URL objetivo no es válida." }, { status: 400 });
+    if (!isHttpUrl(link)) {
+      return NextResponse.json({ success: false, error: "La URL objetivo debe ser http(s) válida." }, { status: 400 });
     }
 
     const services = await getSmmServices();
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     }
 
     const saleRate = applySmmMarkup(providerRate);
-    const costMinor = Math.max(1, Math.ceil((saleRate * quantity / 1000) * 100));
+    const costMinor = orderCostMinor(saleRate, quantity);
     const profile = await ensureProfileForUser(user);
 
     const reservationPayload = await supabaseRpc<ReservationRow[]>("reserve_smm_order", {
@@ -169,14 +170,23 @@ export async function POST(request: Request) {
         p_order_id: reservation.order_id,
         p_error: message,
       });
-      return NextResponse.json({ success: false, error: message }, { status: 502 });
+      console.error("[orders] provider rejected order", providerError);
+      return NextResponse.json(
+        { success: false, error: "El proveedor rechazó el pedido. El balance reservado fue devuelto." },
+        { status: 502 },
+      );
     }
   } catch (error) {
     const message = errorMessage(error);
-    const status = message.includes("insufficient_funds") ? 402 : 500;
-    return NextResponse.json(
-      { success: false, error: status === 402 ? "Balance insuficiente." : message, reservedOrderId },
-      { status },
-    );
+    if (message.includes("insufficient_funds")) {
+      return NextResponse.json({ success: false, error: "Balance insuficiente." }, { status: 402 });
+    }
+    if (message.includes("duplicate key") || message.includes("orders_user_id_idempotency_key")) {
+      return NextResponse.json(
+        { success: false, error: "Ya hay un pedido en curso con esta idempotencyKey.", reservedOrderId },
+        { status: 409 },
+      );
+    }
+    return internalError("orders", error);
   }
 }

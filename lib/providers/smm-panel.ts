@@ -1,3 +1,5 @@
+import { applyMarkup, parseMarkupPercent } from "@/lib/order-status";
+
 export type SmmService = {
   service: string | number;
   name: string;
@@ -122,12 +124,11 @@ async function callSmmPanel<T>(
 }
 
 export function getSmmMarkupPercent() {
-  const value = Number(process.env.SMM_MARKUP_PERCENT ?? "30");
-  return Number.isFinite(value) && value >= 0 ? value : 30;
+  return parseMarkupPercent(process.env.SMM_MARKUP_PERCENT);
 }
 
 export function applySmmMarkup(providerRate: number) {
-  return providerRate * (1 + getSmmMarkupPercent() / 100);
+  return applyMarkup(providerRate, getSmmMarkupPercent());
 }
 
 export function smmLiveOrdersEnabled() {

@@ -4,7 +4,10 @@ on:
   push:
     branches: [main, "audit/**"]
   pull_request:
-    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -22,7 +25,32 @@ jobs:
         run: npm ci
       - name: TypeScript
         run: npm run typecheck
+      - name: Lint
+        run: npm run lint
       - name: Tests
         run: npm test
       - name: Build
         run: npm run build
+      - name: HTTP tests
+        run: npm run test:api
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Migrations and wallet/settlement tests
+        run: npm run test:db
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres

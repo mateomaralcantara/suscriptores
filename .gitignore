@@ -12,3 +12,4 @@ next-panic-*.log
 *.backup-*
 REPORTE-ENV-SEGURO.txt
 datos.txt
+*.tsbuildinfo

@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { OrderActions } from "@/components/OrderActions";
+import { canCancelOrder, canRefillOrder } from "@/lib/order-status";
 import { ensureProfileForUser, getCurrentUser, getOrderForProfile } from "@/lib/supabase-server";
 import { money } from "@/lib/format";
 
@@ -17,8 +18,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!order) notFound();
 
   const serviceName = String(order.metadata?.service_name ?? order.external_service_id ?? "Servicio");
-  const canCancel = Boolean(order.provider_order_id) && !["completed", "canceled", "failed"].includes(order.status);
-  const canRefill = Boolean(order.provider_order_id) && ["completed", "partial"].includes(order.status);
+  const canCancel = canCancelOrder(order);
+  const canRefill = canRefillOrder(order);
 
   return (
     <>

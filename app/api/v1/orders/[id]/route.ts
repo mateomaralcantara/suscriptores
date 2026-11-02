@@ -3,20 +3,11 @@ import {
   ensureProfileForUser,
   getOrderForProfile,
   getUserFromRequest,
-  serviceRoleRest,
+  supabaseRpc,
 } from "@/lib/supabase-server";
 import { getSmmOrderStatus } from "@/lib/providers/smm-panel";
-import { errorMessage } from "@/lib/api";
-
-function normalizeProviderStatus(status?: string) {
-  const value = (status ?? "").trim().toLowerCase();
-  if (value === "completed") return "completed";
-  if (value === "partial") return "partial";
-  if (value === "canceled" || value === "cancelled") return "canceled";
-  if (value === "processing" || value === "in progress") return "processing";
-  if (value === "pending") return "queued";
-  return null;
-}
+import { isTerminalStatus, normalizeProviderStatus } from "@/lib/order-status";
+import { internalError } from "@/lib/api";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getUserFromRequest(request);
@@ -28,32 +19,29 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     let order = await getOrderForProfile(profile.id, id);
     if (!order) return NextResponse.json({ success: false, error: "Pedido no encontrado." }, { status: 404 });
 
-    if (order.provider_order_id) {
+    if (order.provider_order_id && !isTerminalStatus(order.status)) {
       try {
         const provider = await getSmmOrderStatus(order.provider_order_id);
         const normalized = normalizeProviderStatus(provider.status);
         if (normalized && normalized !== order.status) {
-          const updated = await serviceRoleRest<typeof order[]>(
-            `orders?id=eq.${encodeURIComponent(order.id)}&user_id=eq.${encodeURIComponent(profile.id)}`,
-            {
-              method: "PATCH",
-              headers: { Prefer: "return=representation" },
-              body: JSON.stringify({
-                status: normalized,
-                updated_at: new Date().toISOString(),
-                metadata: { ...(order.metadata ?? {}), provider_status: provider },
-              }),
-            },
-          );
-          order = updated[0] ?? order;
+          // Status change and any refund (canceled/partial) happen atomically in the database.
+          const remains = Number(provider.remains);
+          await supabaseRpc<string>("apply_provider_status", {
+            p_order_id: order.id,
+            p_status: normalized,
+            p_remains: Number.isFinite(remains) ? Math.trunc(remains) : null,
+            p_payload: provider,
+          });
+          order = (await getOrderForProfile(profile.id, order.id)) ?? order;
         }
-      } catch {
+      } catch (error) {
         // A provider refresh must never hide the local order from its owner.
+        console.error("[orders/:id] provider status refresh failed", error);
       }
     }
 
     return NextResponse.json({ success: true, data: order });
   } catch (error) {
-    return NextResponse.json({ success: false, error: errorMessage(error) }, { status: 500 });
+    return internalError("orders/:id", error);
   }
 }

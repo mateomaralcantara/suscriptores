@@ -3,10 +3,11 @@ import {
   ensureProfileForUser,
   getOrderForProfile,
   getUserFromRequest,
-  serviceRoleRest,
+  supabaseRpc,
 } from "@/lib/supabase-server";
 import { cancelSmmOrders } from "@/lib/providers/smm-panel";
-import { errorMessage } from "@/lib/api";
+import { canCancelOrder } from "@/lib/order-status";
+import { internalError } from "@/lib/api";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getUserFromRequest(request);
@@ -17,17 +18,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const profile = await ensureProfileForUser(user);
     const order = await getOrderForProfile(profile.id, id);
     if (!order) return NextResponse.json({ success: false, error: "Pedido no encontrado." }, { status: 404 });
-    if (!order.provider_order_id) {
-      return NextResponse.json({ success: false, error: "El pedido aún no tiene ID confirmado del proveedor." }, { status: 409 });
+    if (!canCancelOrder(order)) {
+      return NextResponse.json(
+        { success: false, error: `El pedido en estado "${order.status}" no se puede cancelar.` },
+        { status: 409 },
+      );
     }
 
     const provider = await cancelSmmOrders(String(order.provider_order_id));
-    await serviceRoleRest(`orders?id=eq.${encodeURIComponent(order.id)}&user_id=eq.${encodeURIComponent(profile.id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "cancel_requested", updated_at: new Date().toISOString() }),
-    });
-    return NextResponse.json({ success: true, status: "cancel_requested", provider });
+    // The refund is applied when the provider reports the order as canceled (see apply_provider_status).
+    const status = await supabaseRpc<string>("request_order_cancel", { p_order_id: order.id, p_payload: { provider } });
+    return NextResponse.json({ success: true, status, provider }, { status: 202 });
   } catch (error) {
-    return NextResponse.json({ success: false, error: errorMessage(error) }, { status: 502 });
+    return internalError("orders/:id/cancel", error, 502);
   }
 }

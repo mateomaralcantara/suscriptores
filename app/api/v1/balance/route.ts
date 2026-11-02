@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureProfileForUser, getUserFromRequest, getWalletForProfile } from "@/lib/supabase-server";
-import { errorMessage } from "@/lib/api";
+import { internalError } from "@/lib/api";
 
 export async function GET(request: Request) {
   const user = await getUserFromRequest(request);
@@ -17,6 +17,6 @@ export async function GET(request: Request) {
       promotional: (wallet?.promotional_minor ?? 0) / 100,
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: errorMessage(error) }, { status: 500 });
+    return internalError("balance", error);
   }
 }
