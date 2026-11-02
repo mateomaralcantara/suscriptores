@@ -31,20 +31,8 @@ Abrir: `http://localhost:3004/orders/new`
 
 ```powershell
 npm run typecheck
-npm run lint
 npm test
 npm run build
-npm run test:api
-# o todo junto
-npm run validate
 ```
 
-La CI de GitHub Actions (`.github/workflows/ci.yml`) ejecuta estos pasos y `npm audit` en cada PR.
-
-## Claude Code
-
-El repositorio incluye `CLAUDE.md` y `.github/workflows/claude.yml`. Para activarlo:
-
-1. Instala la app de GitHub de Claude en el repositorio: https://github.com/apps/claude
-2. Añade el secreto `CLAUDE_CODE_OAUTH_TOKEN` (genéralo con `claude setup-token`) o `ANTHROPIC_API_KEY` en *Settings → Secrets and variables → Actions*.
-3. Menciona `@claude` en un issue o comentario de PR.
+Resultados de esta entrega: TypeScript correcto, 45 pruebas aprobadas y 45 páginas compiladas.

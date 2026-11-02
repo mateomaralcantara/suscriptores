@@ -4,14 +4,13 @@ export type OrderService = {
   icon: string;
   name: string;
   description: string;
+  category: string;
+  type: string;
   rate: number;
   min: number;
   max: number;
-  averageTime: string;
-  refillDays: number;
-  speed: string;
-  quality: string;
-  isNew?: boolean;
+  refill: boolean;
+  cancel: boolean;
 };
 
 export const orderPlatforms = [
@@ -27,179 +26,35 @@ export const orderPlatforms = [
   "Traffic",
   "Twitch",
   "Other",
-];
+] as const;
 
-export const orderServices: OrderService[] = [
-  {
-    id: "SL5",
-    platform: "Instagram",
-    icon: "◎",
-    name: "Instagram Campaign Likes · High Quality",
-    description: "Campaña sandbox para demostración, analítica y pruebas de flujo. No entrega interacción artificial real.",
-    rate: 0.197,
-    min: 30,
-    max: 100000,
-    averageTime: "24 minutes",
-    refillDays: 30,
-    speed: "10K-20K/day",
-    quality: "High Quality",
-    isNew: true,
-  },
-  {
-    id: "IG12",
-    platform: "Instagram",
-    icon: "◎",
-    name: "Instagram Official Promotion · Audience Reach",
-    description: "Promoción oficial simulada para modelar campañas, presupuesto y métricas de alcance.",
-    rate: 0.59,
-    min: 100,
-    max: 500000,
-    averageTime: "1 hour",
-    refillDays: 0,
-    speed: "50K/day",
-    quality: "Premium",
-    isNew: true,
-  },
-  {
-    id: "TT24",
-    platform: "TikTok",
-    icon: "♪",
-    name: "TikTok Content Promotion · Creator Campaign",
-    description: "Flujo sandbox de promoción para creadores con segmentación y seguimiento de resultados.",
-    rate: 1.93,
-    min: 100,
-    max: 100000,
-    averageTime: "35 minutes",
-    refillDays: 15,
-    speed: "20K/day",
-    quality: "Creator Quality",
-    isNew: true,
-  },
-  {
-    id: "YT36",
-    platform: "YouTube",
-    icon: "▶",
-    name: "YouTube Video Promotion · Official Ads Demo",
-    description: "Servicio sandbox para simular campañas autorizadas de promoción de video.",
-    rate: 1.86,
-    min: 100,
-    max: 1000000,
-    averageTime: "2 hours",
-    refillDays: 30,
-    speed: "5K/day",
-    quality: "Official Campaign",
-  },
-  {
-    id: "YT41",
-    platform: "YouTube",
-    icon: "▶",
-    name: "YouTube Comment Moderation · AI Assisted",
-    description: "Moderación y clasificación simulada de comentarios para pruebas académicas.",
-    rate: 2.74,
-    min: 10,
-    max: 10000,
-    averageTime: "45 minutes",
-    refillDays: 0,
-    speed: "1K/day",
-    quality: "AI Assisted",
-    isNew: true,
-  },
-  {
-    id: "FB18",
-    platform: "Facebook",
-    icon: "f",
-    name: "Facebook Page Campaign · Audience Discovery",
-    description: "Campaña sandbox para análisis de audiencias y planificación publicitaria.",
-    rate: 0.88,
-    min: 100,
-    max: 250000,
-    averageTime: "50 minutes",
-    refillDays: 0,
-    speed: "25K/day",
-    quality: "Business",
-  },
-  {
-    id: "SP09",
-    platform: "Spotify",
-    icon: "●",
-    name: "Spotify Release Promotion · Playlist Outreach Demo",
-    description: "Simulación educativa de outreach autorizado para lanzamientos musicales.",
-    rate: 3.25,
-    min: 100,
-    max: 50000,
-    averageTime: "6 hours",
-    refillDays: 0,
-    speed: "5K/day",
-    quality: "Editorial Outreach",
-  },
-  {
-    id: "TG14",
-    platform: "Telegram",
-    icon: "✈",
-    name: "Telegram Community Campaign · Managed Outreach",
-    description: "Campaña sandbox de difusión y adquisición autorizada para comunidades.",
-    rate: 1.14,
-    min: 100,
-    max: 100000,
-    averageTime: "90 minutes",
-    refillDays: 7,
-    speed: "10K/day",
-    quality: "Managed",
-  },
-  {
-    id: "X11",
-    platform: "Twitter",
-    icon: "𝕏",
-    name: "X / Twitter Campaign · Impressions Planning",
-    description: "Planificación sandbox de impresiones, alcance y presupuesto de campaña.",
-    rate: 0.74,
-    min: 100,
-    max: 500000,
-    averageTime: "40 minutes",
-    refillDays: 0,
-    speed: "50K/day",
-    quality: "Campaign",
-  },
-  {
-    id: "WA07",
-    platform: "WhatsApp",
-    icon: "◉",
-    name: "WhatsApp Business Campaign · Click-to-Chat Demo",
-    description: "Simulación de campaña Click-to-Chat con métricas y control de presupuesto.",
-    rate: 2.1,
-    min: 50,
-    max: 50000,
-    averageTime: "2 hours",
-    refillDays: 0,
-    speed: "5K/day",
-    quality: "Business",
-  },
-  {
-    id: "TR22",
-    platform: "Traffic",
-    icon: "↗",
-    name: "Website Traffic Campaign · Analytics Sandbox",
-    description: "Tráfico de demostración para validar analítica, atribución y paneles internos.",
-    rate: 0.95,
-    min: 100,
-    max: 1000000,
-    averageTime: "30 minutes",
-    refillDays: 0,
-    speed: "100K/day",
-    quality: "Analytics Demo",
-  },
-  {
-    id: "TW08",
-    platform: "Twitch",
-    icon: "▣",
-    name: "Twitch Creator Promotion · Campaign Sandbox",
-    description: "Promoción simulada para probar flujos de campañas de creadores.",
-    rate: 4.2,
-    min: 50,
-    max: 50000,
-    averageTime: "3 hours",
-    refillDays: 0,
-    speed: "3K/day",
-    quality: "Creator",
-  },
-];
+export function inferPlatform(text: string) {
+  const value = text.toLowerCase();
+  if (value.includes("instagram")) return "Instagram";
+  if (value.includes("tiktok")) return "TikTok";
+  if (value.includes("youtube")) return "YouTube";
+  if (value.includes("facebook")) return "Facebook";
+  if (value.includes("spotify")) return "Spotify";
+  if (value.includes("telegram")) return "Telegram";
+  if (value.includes("twitter") || /(^|\s)x(\s|$)/.test(value)) return "Twitter";
+  if (value.includes("whatsapp")) return "WhatsApp";
+  if (value.includes("traffic") || value.includes("website")) return "Traffic";
+  if (value.includes("twitch")) return "Twitch";
+  return "Other";
+}
+
+export function iconForPlatform(platform: string) {
+  switch (platform) {
+    case "Instagram": return "◎";
+    case "TikTok": return "♪";
+    case "YouTube": return "▶";
+    case "Facebook": return "f";
+    case "Spotify": return "●";
+    case "Telegram": return "✈";
+    case "Twitter": return "𝕏";
+    case "WhatsApp": return "◉";
+    case "Traffic": return "↗";
+    case "Twitch": return "▣";
+    default: return "◇";
+  }
+}
