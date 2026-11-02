@@ -1,28 +1,22 @@
-const API_URL = process.env.SMM_PANEL_API_URL!;
-const API_KEY = process.env.SMM_PANEL_API_KEY!;
+// External provider client. NOT wired into any route: the app runs in sandbox mode.
+// Do not connect it without explicit approval (see CLAUDE.md).
 
-async function callSmmPanel(params: Record<string, string | number>) {
-  const body = new URLSearchParams();
-
-  body.set("key", API_KEY);
-
-  for (const [key, value] of Object.entries(params)) {
-    body.set(key, String(value));
-  }
-
-  const res = await fetch(API_URL, {
-    method: "POST",
-    body,
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    throw new Error(`SMM Panel API error: ${res.status}`);
-  }
-
-  return res.json();
+function getConfig() {
+  const url = process.env.SMM_PANEL_API_URL;
+  const key = process.env.SMM_PANEL_API_KEY;
+  if (!url || !key) throw new Error("SMM_PANEL_API_URL y SMM_PANEL_API_KEY no están configuradas.");
+  return { url, key };
 }
 
+async function callSmmPanel(params: Record<string, string | number>) {
+  const { url, key } = getConfig();
+  const body = new URLSearchParams({ key });
+  for (const [name, value] of Object.entries(params)) body.set(name, String(value));
+
+  const res = await fetch(url, { method: "POST", body, cache: "no-store", signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`SMM Panel API error: ${res.status}`);
+  return res.json();
+}
 export async function getSmmServices() {
   return callSmmPanel({
     action: "services",

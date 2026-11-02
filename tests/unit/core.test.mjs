@@ -73,3 +73,15 @@ test("format helpers use es-DO locale", () => {
   assert.match(money(1234.5), /1,234\.50/);
   assert.equal(number(1000000), "1,000,000");
 });
+
+test("canCancel only allows in-flight orders", async () => {
+  const { canCancel } = await import("../../lib/order-rules.ts");
+  for (const status of ["queued", "processing", "submitted"]) assert.equal(canCancel(status), true, status);
+  for (const status of ["completed", "canceled", "refunded", "failed"]) assert.equal(canCancel(status), false, status);
+});
+
+test("canRefill only allows delivered orders", async () => {
+  const { canRefill } = await import("../../lib/order-rules.ts");
+  for (const status of ["completed", "partial"]) assert.equal(canRefill(status), true, status);
+  for (const status of ["queued", "processing", "canceled"]) assert.equal(canRefill(status), false, status);
+});

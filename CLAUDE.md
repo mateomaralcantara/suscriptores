@@ -15,7 +15,8 @@ npm ci              # instalar (Node >= 22.18)
 npm run dev         # servidor de desarrollo (webpack)
 npm run typecheck   # tsc --noEmit
 npm run lint        # ESLint (eslint-config-next)
-npm test            # node --test sobre tests/**/*.test.mjs
+npm test            # unit + integration + e2e (node --test)
+npm run test:api    # pruebas HTTP contra el build (requiere npm run build)
 npm run build       # build de producción
 npm run validate    # todo lo anterior en orden
 ```
@@ -42,4 +43,5 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar.
 - La validación vive en `lib/order-rules.ts` y se reutiliza en cliente y servidor; no dupliques reglas.
 - Las rutas de API devuelven `400` para JSON inválido y `422` con `details` por campo para errores de validación.
 - Textos visibles al usuario en español.
-- Pruebas: añade casos en `tests/unit` (lógica pura), `tests/integration` (catálogo/flujo) y `tests/e2e` (rutas).
+- Pruebas: añade casos en `tests/unit` (lógica pura), `tests/integration` (catálogo/flujo), `tests/e2e` (rutas) y `tests/api` (HTTP real contra el build).
+- Un id inexistente devuelve `404` (API y páginas de detalle); nunca uses el primer elemento como fallback.

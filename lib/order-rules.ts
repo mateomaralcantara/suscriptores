@@ -56,3 +56,16 @@ export function validateOrder(input: OrderInput, catalog: readonly OrderService[
   if (!service || Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, order: { service, link, quantity, charge: calculateCharge(service.rate, quantity) } };
 }
+
+/** Order states from which a cancellation can still be requested. */
+export const CANCELABLE_STATUSES: readonly string[] = ["draft", "validating", "queued", "submitted", "processing"];
+/** Order states that are eligible for a refill request. */
+export const REFILLABLE_STATUSES: readonly string[] = ["completed", "partial"];
+
+export function canCancel(status: string): boolean {
+  return CANCELABLE_STATUSES.includes(status);
+}
+
+export function canRefill(status: string): boolean {
+  return REFILLABLE_STATUSES.includes(status);
+}
