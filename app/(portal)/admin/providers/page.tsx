@@ -13,21 +13,12 @@ export default async function ProvidersPage() {
     );
   }
 
+  let data: { balance: Awaited<ReturnType<typeof getSmmBalance>>; servicesCount: number };
   try {
     const [balance, services] = await Promise.all([getSmmBalance(), getSmmServices()]);
-    return (
-      <>
-        <PageHeader title="Proveedores" description="Estado en tiempo real del proveedor conectado." />
-        <div className="grid four">
-          <div className="card"><span className="muted">Proveedor</span><h3>SMM Panel</h3></div>
-          <div className="card"><span className="muted">Balance proveedor</span><h3>{balance.currency} {balance.balance}</h3></div>
-          <div className="card"><span className="muted">Servicios</span><h3>{services.length.toLocaleString()}</h3></div>
-          <div className="card"><span className="muted">Pedidos reales</span><h3>{smmLiveOrdersEnabled() ? "ACTIVOS" : "BLOQUEADOS"}</h3></div>
-        </div>
-        <div className="notice" style={{ marginTop: 18 }}>La clave privada del proveedor permanece únicamente en variables de entorno del servidor y nunca se muestra en esta página.</div>
-      </>
-    );
+    data = { balance, servicesCount: services.length };
   } catch (error) {
+    console.error("[admin/providers] provider error", error);
     return (
       <>
         <PageHeader title="Proveedores" description="No fue posible consultar el proveedor." />
@@ -35,4 +26,17 @@ export default async function ProvidersPage() {
       </>
     );
   }
+
+  return (
+    <>
+      <PageHeader title="Proveedores" description="Estado en tiempo real del proveedor conectado." />
+      <div className="grid four">
+        <div className="card"><span className="muted">Proveedor</span><h3>SMM Panel</h3></div>
+        <div className="card"><span className="muted">Balance proveedor</span><h3>{data.balance.currency} {data.balance.balance}</h3></div>
+        <div className="card"><span className="muted">Servicios</span><h3>{data.servicesCount.toLocaleString()}</h3></div>
+        <div className="card"><span className="muted">Pedidos reales</span><h3>{smmLiveOrdersEnabled() ? "ACTIVOS" : "BLOQUEADOS"}</h3></div>
+      </div>
+      <div className="notice" style={{ marginTop: 18 }}>La clave privada del proveedor permanece únicamente en variables de entorno del servidor y nunca se muestra en esta página.</div>
+    </>
+  );
 }

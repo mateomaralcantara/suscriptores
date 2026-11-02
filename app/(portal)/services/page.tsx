@@ -6,10 +6,10 @@ import { inferPlatform } from "@/lib/order-services";
 
 export const dynamic = "force-dynamic";
 
-export default async function ServicesPage() {
+async function loadServices() {
   try {
     const raw = await getSmmServices();
-    const services = raw.map((service) => {
+    return { services: raw.map((service) => {
       const providerRate = Number(service.rate);
       const rate = applySmmMarkup(Number.isFinite(providerRate) ? providerRate : 0);
       return {
@@ -23,10 +23,27 @@ export default async function ServicesPage() {
         refill: Boolean(service.refill),
         cancel: Boolean(service.cancel),
       };
-    });
+    }) };
+  } catch (error) {
+    console.error("[services] provider error", error);
+    return { error: "No fue posible cargar el catálogo del proveedor. Inténtalo de nuevo en unos minutos." };
+  }
+}
 
-    const categories = Array.from(new Set(services.map((service) => service.category))).slice(0, 4);
+export default async function ServicesPage() {
+  const result = await loadServices();
+  if (!("services" in result) || !result.services) {
     return (
+      <>
+        <PageHeader title="Catálogo de servicios" description="Proveedor no disponible." />
+        <div className="notice">{result.error}</div>
+      </>
+    );
+  }
+  const { services } = result;
+
+  const categories = Array.from(new Set(services.map((service) => service.category))).slice(0, 4);
+  return (
       <>
         <PageHeader
           title="Catálogo de servicios"
@@ -56,13 +73,4 @@ export default async function ServicesPage() {
         />
       </>
     );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "No fue posible cargar el catálogo.";
-    return (
-      <>
-        <PageHeader title="Catálogo de servicios" description="Proveedor no disponible." />
-        <div className="notice">{message}</div>
-      </>
-    );
-  }
 }
