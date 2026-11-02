@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { orderPlatforms, orderServices } from "@/lib/order-services";
+import { calculateCharge, validateOrder } from "@/lib/order-rules";
 
 export function NewOrderPanel() {
   const [platform, setPlatform] = useState("All");
@@ -21,7 +22,7 @@ export function NewOrderPanel() {
   }, [platform, search]);
 
   const selected = orderServices.find((service) => service.id === serviceId) ?? filteredServices[0] ?? orderServices[0];
-  const charge = Math.max(0, (quantity / 1000) * selected.rate);
+  const charge = calculateCharge(selected.rate, quantity);
 
   function selectPlatform(nextPlatform: string) {
     setPlatform(nextPlatform);
@@ -42,11 +43,12 @@ export function NewOrderPanel() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (quantity < selected.min || quantity > selected.max) {
-      setMessage(`La cantidad debe estar entre ${selected.min.toLocaleString()} y ${selected.max.toLocaleString()}.`);
+    const result = validateOrder({ serviceId: selected.id, link, quantity }, orderServices);
+    if (!result.ok) {
+      setMessage(Object.values(result.errors).join(" "));
       return;
     }
-    setMessage(`Pedido sandbox creado: ${selected.id} · US$${charge.toFixed(4)}. No se envió a un proveedor real.`);
+    setMessage(`Pedido sandbox creado: ${result.order.service.id} · US$${result.order.charge.toFixed(4)}. No se envió a un proveedor real.`);
   }
 
   return (

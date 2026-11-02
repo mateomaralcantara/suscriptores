@@ -7,6 +7,16 @@ export const metadata: Metadata = {
   description: "Plataforma SaaS sandbox para gestión de servicios digitales, pedidos y revendedores.",
 };
 
+// Applies the saved theme before first paint to avoid a flash of the wrong theme.
+const themeScript = `try{if(localStorage.getItem("growth-theme")==="light")document.documentElement.classList.add("light")}catch(e){}`;
+
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  return <html lang="es"><body>{children}</body></html>;
+  return (
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body>{children}</body>
+    </html>
+  );
 }

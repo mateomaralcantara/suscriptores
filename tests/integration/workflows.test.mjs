@@ -1,14 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { orderPlatforms, orderServices } from "../../lib/order-services.ts";
+import { validateOrder } from "../../lib/order-rules.ts";
 
-const states = ["draft","validating","queued","submitted","processing","completed","partial","canceled","failed","refunding","refunded"];
-test("integration workflow 1", () => { assert.ok(states.includes(states[1%states.length])); assert.ok(1 <= 10000); });
-test("integration workflow 2", () => { assert.ok(states.includes(states[2%states.length])); assert.ok(2 <= 10000); });
-test("integration workflow 3", () => { assert.ok(states.includes(states[3%states.length])); assert.ok(3 <= 10000); });
-test("integration workflow 4", () => { assert.ok(states.includes(states[4%states.length])); assert.ok(4 <= 10000); });
-test("integration workflow 5", () => { assert.ok(states.includes(states[5%states.length])); assert.ok(5 <= 10000); });
-test("integration workflow 6", () => { assert.ok(states.includes(states[6%states.length])); assert.ok(6 <= 10000); });
-test("integration workflow 7", () => { assert.ok(states.includes(states[7%states.length])); assert.ok(7 <= 10000); });
-test("integration workflow 8", () => { assert.ok(states.includes(states[8%states.length])); assert.ok(8 <= 10000); });
-test("integration workflow 9", () => { assert.ok(states.includes(states[9%states.length])); assert.ok(9 <= 10000); });
-test("integration workflow 10", () => { assert.ok(states.includes(states[10%states.length])); assert.ok(10 <= 10000); });
+test("catalog service ids are unique", () => {
+  const ids = orderServices.map((service) => service.id);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+test("every catalog service has a coherent configuration", () => {
+  for (const service of orderServices) {
+    assert.ok(service.rate > 0, `${service.id} rate`);
+    assert.ok(Number.isInteger(service.min) && service.min > 0, `${service.id} min`);
+    assert.ok(Number.isInteger(service.max) && service.max >= service.min, `${service.id} max`);
+    assert.ok(service.refillDays >= 0, `${service.id} refillDays`);
+    assert.ok(orderPlatforms.includes(service.platform), `${service.id} platform ${service.platform}`);
+    assert.ok(service.name && service.description, `${service.id} text`);
+  }
+});
+
+test("platform tabs start with All and have no duplicates", () => {
+  assert.equal(orderPlatforms[0], "All");
+  assert.equal(new Set(orderPlatforms).size, orderPlatforms.length);
+});
+
+test("every catalog service accepts its own min and max quantity", () => {
+  for (const service of orderServices) {
+    for (const quantity of [service.min, service.max]) {
+      const result = validateOrder({ serviceId: service.id, link: "https://example.com/x", quantity }, orderServices);
+      assert.equal(result.ok, true, `${service.id} quantity=${quantity}`);
+      assert.ok(result.order.charge > 0);
+    }
+  }
+});

@@ -1,36 +1,75 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { calculateCharge, isValidLink, validateOrder } from "../../lib/order-rules.ts";
+import { money, number } from "../../lib/format.ts";
 
-function price(base, margin, quantity) { return Number((base * margin * quantity / 100).toFixed(2)); }
-function validQuantity(q, min, max) { return q >= min && q <= max; }
+const service = { id: "T1", platform: "Test", icon: "*", name: "Test", description: "", rate: 2.5, min: 100, max: 1000, averageTime: "1h", refillDays: 0, speed: "1K/day", quality: "Test" };
+const catalog = [service];
+const valid = { serviceId: "T1", link: "https://example.com/post/1", quantity: 500 };
 
-test("unit pricing case 1", () => assert.equal(price(2, 1.4, 100), Number(((2)*1.4).toFixed(2))));
-test("unit quantity case 2", () => assert.equal(validQuantity(20, 10, 10000), true));
-test("unit pricing case 3", () => assert.equal(price(4, 1.4, 100), Number(((4)*1.4).toFixed(2))));
-test("unit quantity case 4", () => assert.equal(validQuantity(40, 10, 10000), true));
-test("unit pricing case 5", () => assert.equal(price(6, 1.4, 100), Number(((6)*1.4).toFixed(2))));
-test("unit quantity case 6", () => assert.equal(validQuantity(60, 10, 10000), true));
-test("unit pricing case 7", () => assert.equal(price(8, 1.4, 100), Number(((8)*1.4).toFixed(2))));
-test("unit quantity case 8", () => assert.equal(validQuantity(80, 10, 10000), true));
-test("unit pricing case 9", () => assert.equal(price(10, 1.4, 100), Number(((10)*1.4).toFixed(2))));
-test("unit quantity case 10", () => assert.equal(validQuantity(100, 10, 10000), true));
-test("unit pricing case 11", () => assert.equal(price(12, 1.4, 100), Number(((12)*1.4).toFixed(2))));
-test("unit quantity case 12", () => assert.equal(validQuantity(120, 10, 10000), true));
-test("unit pricing case 13", () => assert.equal(price(14, 1.4, 100), Number(((14)*1.4).toFixed(2))));
-test("unit quantity case 14", () => assert.equal(validQuantity(140, 10, 10000), true));
-test("unit pricing case 15", () => assert.equal(price(16, 1.4, 100), Number(((16)*1.4).toFixed(2))));
-test("unit quantity case 16", () => assert.equal(validQuantity(160, 10, 10000), true));
-test("unit pricing case 17", () => assert.equal(price(18, 1.4, 100), Number(((18)*1.4).toFixed(2))));
-test("unit quantity case 18", () => assert.equal(validQuantity(180, 10, 10000), true));
-test("unit pricing case 19", () => assert.equal(price(20, 1.4, 100), Number(((20)*1.4).toFixed(2))));
-test("unit quantity case 20", () => assert.equal(validQuantity(200, 10, 10000), true));
-test("unit pricing case 21", () => assert.equal(price(22, 1.4, 100), Number(((22)*1.4).toFixed(2))));
-test("unit quantity case 22", () => assert.equal(validQuantity(220, 10, 10000), true));
-test("unit pricing case 23", () => assert.equal(price(24, 1.4, 100), Number(((24)*1.4).toFixed(2))));
-test("unit quantity case 24", () => assert.equal(validQuantity(240, 10, 10000), true));
-test("unit pricing case 25", () => assert.equal(price(26, 1.4, 100), Number(((26)*1.4).toFixed(2))));
-test("unit quantity case 26", () => assert.equal(validQuantity(260, 10, 10000), true));
-test("unit pricing case 27", () => assert.equal(price(28, 1.4, 100), Number(((28)*1.4).toFixed(2))));
-test("unit quantity case 28", () => assert.equal(validQuantity(280, 10, 10000), true));
-test("unit pricing case 29", () => assert.equal(price(30, 1.4, 100), Number(((30)*1.4).toFixed(2))));
-test("unit quantity case 30", () => assert.equal(validQuantity(300, 10, 10000), true));
+test("calculateCharge prices per 1000 units", () => {
+  assert.equal(calculateCharge(2.5, 1000), 2.5);
+  assert.equal(calculateCharge(0.197, 30), 0.0059);
+  assert.equal(calculateCharge(4.2, 50000), 210);
+});
+
+test("calculateCharge returns 0 for invalid or non-positive input", () => {
+  for (const [rate, qty] of [[0, 100], [1, 0], [-1, 100], [1, -5], [Number.NaN, 100], [1, Number.POSITIVE_INFINITY]]) {
+    assert.equal(calculateCharge(rate, qty), 0, `rate=${rate} qty=${qty}`);
+  }
+});
+
+test("isValidLink accepts only http(s) URLs", () => {
+  assert.equal(isValidLink("https://example.com"), true);
+  assert.equal(isValidLink("http://example.com/a?b=1"), true);
+  assert.equal(isValidLink("javascript:alert(1)"), false);
+  assert.equal(isValidLink("ftp://example.com"), false);
+  assert.equal(isValidLink("not a url"), false);
+  assert.equal(isValidLink(""), false);
+});
+
+test("validateOrder accepts a valid order and computes the charge", () => {
+  const result = validateOrder(valid, catalog);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.order, { service, link: valid.link, quantity: 500, charge: 1.25 });
+});
+
+test("validateOrder accepts numeric strings and trims the link", () => {
+  const result = validateOrder({ ...valid, quantity: "100", link: "  https://example.com  " }, catalog);
+  assert.equal(result.ok, true);
+  assert.equal(result.order.quantity, 100);
+  assert.equal(result.order.link, "https://example.com");
+});
+
+test("validateOrder enforces min and max inclusively", () => {
+  assert.equal(validateOrder({ ...valid, quantity: 100 }, catalog).ok, true);
+  assert.equal(validateOrder({ ...valid, quantity: 1000 }, catalog).ok, true);
+  assert.ok(validateOrder({ ...valid, quantity: 99 }, catalog).errors.quantity);
+  assert.ok(validateOrder({ ...valid, quantity: 1001 }, catalog).errors.quantity);
+});
+
+test("validateOrder rejects non-integer and missing quantities", () => {
+  for (const quantity of [100.5, "abc", "", null, undefined, Number.NaN]) {
+    const result = validateOrder({ ...valid, quantity }, catalog);
+    assert.equal(result.ok, false, `quantity=${String(quantity)}`);
+    assert.ok(result.errors.quantity);
+  }
+});
+
+test("validateOrder rejects unknown services instead of falling back", () => {
+  const result = validateOrder({ ...valid, serviceId: "NOPE" }, catalog);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.serviceId);
+  assert.equal(validateOrder({ ...valid, serviceId: 123 }, catalog).ok, false);
+});
+
+test("validateOrder reports every invalid field at once", () => {
+  const result = validateOrder({}, catalog);
+  assert.equal(result.ok, false);
+  assert.deepEqual(Object.keys(result.errors).sort(), ["link", "quantity", "serviceId"]);
+});
+
+test("format helpers use es-DO locale", () => {
+  assert.match(money(1234.5), /1,234\.50/);
+  assert.equal(number(1000000), "1,000,000");
+});
