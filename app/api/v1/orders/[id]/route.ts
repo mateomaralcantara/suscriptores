@@ -1,3 +1,9 @@
-import { orders } from "@/lib/demo-data";
-import { json } from "@/lib/api";
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; const order = orders.find((item) => item.id === id) ?? { ...orders[0], id }; return json({ success: true, mode: "sandbox", data: order }); }
+import { authenticate, handle, json } from "@/lib/api";
+import { getStore } from "@/lib/store";
+import { orderJson } from "@/lib/views";
+
+export const GET = handle(async (request, { params }: { params: Promise<{ id: string }> }) => {
+  const user = await authenticate(request);
+  const { id } = await params;
+  return json({ success: true, data: orderJson(getStore().getOrder(user, id)) });
+});

@@ -1,2 +1,8 @@
-import { json } from "@/lib/api";
-export async function GET() { return json({ success: true, mode: "sandbox", currency: "USD", available: 12480.5, reserved: 1245.2, promotional: 420 }); }
+import { authenticate, handle, json } from "@/lib/api";
+import { microsToUsd } from "@/lib/money";
+import { getStore } from "@/lib/store";
+
+export const GET = handle(async (request) => {
+  const user = await authenticate(request);
+  return json({ success: true, currency: "USD", available: microsToUsd(getStore().balanceMicros(user.id)) });
+});

@@ -1,3 +1,16 @@
+import { FundsForm } from "@/components/FundsForm";
 import { PageHeader } from "@/components/PageHeader";
-import { SandboxForm } from "@/components/SandboxForm";
-export default function AddFundsPage() { return <><PageHeader title="Agregar fondos" description="Stripe Test Mode, tarjeta sandbox, transferencia simulada, cupón y crédito administrativo." /><div className="grid four" style={{ marginBottom: 18 }}>{[["US$50","2%"],["US$100","4%"],["US$500","6%"],["US$2,000","8%"]].map(([amount, bonus]) => <div className="card" key={amount}><span className="muted">Depósito</span><h3>{amount}</h3><strong>Bono {bonus}</strong></div>)}</div><SandboxForm kind="funds" /></>; }
+import { isDemoMode } from "@/lib/config";
+import { money } from "@/lib/format";
+import { microsToUsd } from "@/lib/money";
+import { requireUser } from "@/lib/server/current-user";
+import { getStore } from "@/lib/store";
+
+export default async function AddFundsPage() {
+  const user = await requireUser();
+  return <>
+    <PageHeader title="Agregar fondos" description="Recarga tu cartera para crear pedidos." />
+    <div className="grid four" style={{ marginBottom: 18 }}><div className="card"><span className="muted">Saldo disponible</span><h3>{money(microsToUsd(getStore().balanceMicros(user.id)))}</h3></div></div>
+    {isDemoMode() ? <FundsForm /> : <div className="card notice">Los pagos reales aún no están habilitados: falta configurar una pasarela de pago.</div>}
+  </>;
+}

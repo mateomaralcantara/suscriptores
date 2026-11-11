@@ -7,14 +7,14 @@ const groups = [
   { label: "Sistema", items: [["⚙", "Configuración", "/settings"], ["◎", "Notificaciones", "/notifications"], ["◆", "Administración", "/admin"], ["i", "Centro de ayuda", "/help"]] },
 ];
 
-export function Sidebar() {
+export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
   return (
     <aside className="sidebar">
       <Brand />
       {groups.map((group) => (
         <div className="nav-group" key={group.label}>
           <div className="nav-label">{group.label}</div>
-          {group.items.map(([icon, label, href]) => <Link className="side-link" href={href} key={href}><span className="side-icon">{icon}</span><span>{label}</span></Link>)}
+          {group.items.filter(([, , href]) => isAdmin || href !== "/admin").map(([icon, label, href]) => <Link className="side-link" href={href} key={href}><span className="side-icon">{icon}</span><span>{label}</span></Link>)}
         </div>
       ))}
     </aside>

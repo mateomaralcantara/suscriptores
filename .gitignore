@@ -9,3 +9,5 @@ node_modules/
 npm-debug.log*
 REPORTE-ENV-SEGURO.txt
 datos.txt
+tsconfig.tsbuildinfo
+.validation/

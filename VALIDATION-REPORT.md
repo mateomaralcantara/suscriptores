@@ -1,15 +1,12 @@
 # Validation report
 
-Fecha: 2026-06-21
+Fecha: 2026-11-11 · Comando: `npm run validate`
 
 - TypeScript: aprobado (`npm run typecheck`)
-- Pruebas: 45/45 aprobadas (`npm test`)
-- Build Next.js 16.2.9: aprobado (`npm run build`)
-- Páginas compiladas: 45
-- Proxy único: `proxy.ts`
-- Sin `middleware.ts` duplicado
-- Sin rutas duplicadas `/admin` o `/dashboard`
-- Panel nuevo: `/orders/new`
-- Catálogo API sandbox: `/api/v1/services`
+- ESLint: sin errores ni avisos (`npm run lint`)
+- Pruebas unitarias: 39/39 (`npm run test:unit`)
+- Build Next.js 16.4.6: aprobado (`npm run build`)
+- Pruebas de extremo a extremo contra el build: 19/19 (`npm run test:e2e`)
+- `npm audit --omit=dev`: 0 vulnerabilidades. Quedan 8 avisos moderados en herramientas de desarrollo (cadena de ESLint), que no se despliegan.
 
 El proyecto se entrega sin `node_modules` ni `.next`; se generan con `npm install` y `npm run build`.

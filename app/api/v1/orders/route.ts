@@ -1,10 +1,22 @@
-import { orders, services } from "@/lib/demo-data";
-import { json, safeBody } from "@/lib/api";
-export async function GET() { return json({ success: true, mode: "sandbox", total: orders.length, data: orders }); }
-export async function POST(request: Request) {
-  const body = await safeBody(request) as { serviceId?: string; target?: string; quantity?: number; idempotencyKey?: string };
-  const service = services.find((item) => item.id === body.serviceId) ?? services[0];
-  const quantity = Math.max(service.min, Math.min(service.max, Number(body.quantity ?? 100)));
-  const cost = Number(((service.userPrice * quantity) / 100).toFixed(2));
-  return json({ success: true, orderId: `ORD-DEMO-${Date.now()}`, status: "queued", cost, currency: "USD", mode: "sandbox", idempotencyKey: request.headers.get("Idempotency-Key") ?? body.idempotencyKey ?? null }, { status: 201 });
-}
+import { authenticate, handle, json, readJson } from "@/lib/api";
+import { ApiError } from "@/lib/errors";
+import { getStore } from "@/lib/store";
+import { parseOrderInput } from "@/lib/validation";
+import { orderJson } from "@/lib/views";
+
+export const GET = handle(async (request) => {
+  const user = await authenticate(request);
+  const data = getStore().listOrders(user).map(orderJson);
+  return json({ success: true, total: data.length, data });
+});
+
+export const POST = handle(async (request) => {
+  const user = await authenticate(request);
+  const input = parseOrderInput(await readJson(request));
+  const key = request.headers.get("idempotency-key");
+  if (key !== null && (key.length === 0 || key.length > 128)) {
+    throw new ApiError(422, "validation_failed", "Idempotency-Key debe tener entre 1 y 128 caracteres.");
+  }
+  const { order, replayed } = getStore().placeOrder(user, input, key);
+  return json({ success: true, replayed, data: orderJson(order) }, { status: replayed ? 200 : 201 });
+});

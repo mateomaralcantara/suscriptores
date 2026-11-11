@@ -1,6 +1,21 @@
 import { PageHeader } from "@/components/PageHeader";
 import { SimpleTable } from "@/components/SimpleTable";
-import { StatusBadge } from "@/components/StatusBadge";
-import { transactions } from "@/lib/demo-data";
 import { money } from "@/lib/format";
-export default function TransactionsPage() { return <><PageHeader title="Transacciones" description="Movimientos de balance, reservas, bonos, comisiones y reembolsos." /><div className="grid four" style={{ marginBottom: 18 }}><div className="card"><span className="muted">Disponible</span><h3>US$12,480.50</h3></div><div className="card"><span className="muted">Reservado</span><h3>US$1,245.20</h3></div><div className="card"><span className="muted">Bonos</span><h3>US$420.00</h3></div><div className="card"><span className="muted">Reembolsos</span><h3>US$318.40</h3></div></div><SimpleTable headers={["Referencia", "Tipo", "Monto", "Fecha", "Estado"]} rows={transactions.map((tx) => [tx.id, tx.type, money(tx.amount), tx.date, <StatusBadge status={tx.status} key={tx.id} />])} /></>; }
+import { microsToUsd } from "@/lib/money";
+import { requireUser } from "@/lib/server/current-user";
+import { getStore } from "@/lib/store";
+
+const LABELS = { deposit: "Depósito", order: "Pedido", refund: "Reembolso" } as const;
+
+export default async function TransactionsPage() {
+  const user = await requireUser();
+  const store = getStore();
+  const ledger = store.listLedger(user);
+  const total = (type: keyof typeof LABELS) => ledger.filter((entry) => entry.type === type).reduce((sum, entry) => sum + Math.abs(entry.amountMicros), 0);
+  const cards: Array<[string, number]> = [["Disponible", store.balanceMicros(user.id)], ["Depósitos", total("deposit")], ["Pedidos", total("order")], ["Reembolsos", total("refund")]];
+  return <>
+    <PageHeader title="Transacciones" description={user.role === "admin" ? "Movimientos de todas las carteras." : "Movimientos de tu cartera: depósitos, pedidos y reembolsos."} />
+    <div className="grid four" style={{ marginBottom: 18 }}>{cards.map(([label, micros]) => <div className="card" key={label}><span className="muted">{label}</span><h3>{money(microsToUsd(micros))}</h3></div>)}</div>
+    <SimpleTable headers={["Referencia", "Tipo", "Monto", "Saldo posterior", "Origen", "Fecha"]} rows={ledger.map((entry) => [entry.id, LABELS[entry.type], money(microsToUsd(entry.amountMicros)), money(microsToUsd(entry.balanceAfterMicros)), entry.reference, entry.createdAt.slice(0, 16).replace("T", " ")])} />
+  </>;
+}

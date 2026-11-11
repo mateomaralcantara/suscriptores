@@ -1,10 +1,37 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { OrderActions } from "@/components/OrderActions";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { orders } from "@/lib/demo-data";
+import { isApiError } from "@/lib/errors";
 import { money } from "@/lib/format";
+import { microsToUsd } from "@/lib/money";
+import { requireUser } from "@/lib/server/current-user";
+import { getStore, type OrderView } from "@/lib/store";
+
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params; const order = orders.find((item) => item.id === id) ?? orders[0]; if (!order) notFound();
-  return <><PageHeader title={order.id} description="Detalle completo, eventos y acciones sandbox del pedido." action={<Link className="btn" href="/orders">← Volver</Link>} /><div className="grid two"><section className="card"><h3>Información</h3><div className="list"><div className="list-item"><span>Servicio</span><strong>{order.service}</strong></div><div className="list-item"><span>Objetivo</span><strong>{order.target}</strong></div><div className="list-item"><span>Cantidad</span><strong>{order.quantity}</strong></div><div className="list-item"><span>Costo</span><strong>{money(order.cost)}</strong></div><div className="list-item"><span>Estado</span><StatusBadge status={order.status} /></div></div></section><section className="card"><h3>Línea de tiempo</h3><div className="list"><div className="list-item"><span>Draft</span><strong>09:10</strong></div><div className="list-item"><span>Validated</span><strong>09:11</strong></div><div className="list-item"><span>Queued</span><strong>09:11</strong></div><div className="list-item"><span>{order.status}</span><strong>10:24</strong></div></div><div className="form-actions"><button className="btn danger" type="button">Solicitar cancelación</button><button className="btn" type="button">Solicitar refill</button></div></section></div></>;
+  const user = await requireUser();
+  const { id } = await params;
+  let order: OrderView;
+  try {
+    order = getStore().getOrder(user, id);
+  } catch (error) {
+    if (isApiError(error) && error.status === 404) notFound();
+    throw error;
+  }
+  const rows: Array<[string, React.ReactNode]> = [
+    ["Servicio", `${order.serviceId} · ${order.serviceName}`],
+    ["Enlace", order.link],
+    ["Cantidad", order.quantity],
+    ["Costo", money(microsToUsd(order.costMicros))],
+    ["Creado", order.createdAt.slice(0, 19).replace("T", " ")],
+    ["Estado", <StatusBadge status={order.status} key="status" />],
+  ];
+  return <>
+    <PageHeader title={order.id} description="Detalle del pedido y acciones disponibles." action={<Link className="btn" href="/orders">← Volver</Link>} />
+    <div className="grid two">
+      <section className="card"><h3>Información</h3><div className="list">{rows.map(([label, value]) => <div className="list-item" key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></section>
+      <section className="card"><h3>Acciones</h3><p className="muted">Puedes cancelar mientras el pedido no esté completado; el importe vuelve a tu cartera. El refill se habilita al completarse{order.refillDays > 0 ? ` (${order.refillDays} días)` : " (no disponible en este servicio)"}.</p><OrderActions canCancel={order.status === "queued" || order.status === "processing"} canRefill={order.status === "completed" && order.refillDays > 0} orderId={order.id} /></section>
+    </div>
+  </>;
 }

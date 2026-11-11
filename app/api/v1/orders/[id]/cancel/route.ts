@@ -1,2 +1,9 @@
-import { json } from "@/lib/api";
-export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; return json({ success: true, orderId: id, requestId: `CAN-${Date.now()}`, status: "pending", mode: "sandbox" }, { status: 202 }); }
+import { authenticate, handle, json } from "@/lib/api";
+import { getStore } from "@/lib/store";
+import { orderJson } from "@/lib/views";
+
+export const POST = handle(async (request, { params }: { params: Promise<{ id: string }> }) => {
+  const user = await authenticate(request);
+  const { id } = await params;
+  return json({ success: true, data: orderJson(getStore().cancelOrder(user, id)) });
+});

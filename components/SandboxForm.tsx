@@ -3,7 +3,7 @@
 import { FormEvent, useMemo, useState } from "react";
 import { services } from "@/lib/demo-data";
 
-export type FormKind = "order" | "bulk" | "funds" | "ticket" | "panel" | "login" | "register" | "forgot" | "settings";
+export type FormKind = "order" | "bulk" | "funds" | "ticket" | "panel" | "forgot" | "settings";
 
 export function SandboxForm({ kind }: { kind: FormKind }) {
   const [message, setMessage] = useState("");
@@ -19,8 +19,6 @@ export function SandboxForm({ kind }: { kind: FormKind }) {
       funds: "Depósito sandbox registrado como pendiente.",
       ticket: "Ticket de demostración creado correctamente.",
       panel: "Solicitud de panel secundario registrada.",
-      login: "Sesión demo iniciada. Usa el enlace al dashboard.",
-      register: "Cuenta demo registrada para evaluación.",
       forgot: "Correo de recuperación simulado enviado.",
       settings: "Configuración guardada localmente en modo demo.",
     };
@@ -67,17 +65,6 @@ export function SandboxForm({ kind }: { kind: FormKind }) {
         <div className="field"><label>Moneda</label><select><option>USD</option><option>DOP</option><option>EUR</option></select></div>
         <div className="field"><label>Margen global</label><input type="number" defaultValue="35" /></div>
         <div className="field"><label>Plan demo</label><select><option>Reseller</option><option>Reseller Pro</option><option>Enterprise</option></select></div>
-      </div> : null}
-
-      {kind === "login" ? <div className="form-grid">
-        <div className="field full"><label>Correo</label><input type="email" defaultValue="admin@classroom.local" /></div>
-        <div className="field full"><label>Contraseña</label><input type="password" defaultValue="DemoAdmin123!" /></div>
-      </div> : null}
-
-      {kind === "register" ? <div className="form-grid">
-        <div className="field full"><label>Nombre completo</label><input required defaultValue="Usuario Demo" /></div>
-        <div className="field full"><label>Correo</label><input required type="email" defaultValue="nuevo@classroom.local" /></div>
-        <div className="field full"><label>Contraseña</label><input required type="password" defaultValue="DemoUser123!" /></div>
       </div> : null}
 
       {kind === "forgot" ? <div className="form-grid"><div className="field full"><label>Correo registrado</label><input required type="email" defaultValue="student@classroom.local" /></div></div> : null}

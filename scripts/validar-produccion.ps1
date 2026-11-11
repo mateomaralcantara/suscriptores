@@ -14,6 +14,9 @@ $lines += "=== TESTS ==="; $lines += $testOut
 if ($LASTEXITCODE -ne 0) { $lines | Set-Content $Report; throw "Pruebas fallaron. Ver $Report" }
 cmd.exe /d /c "npm run build" 2>&1 | Tee-Object -Variable buildOut
 $lines += "=== BUILD ==="; $lines += $buildOut
+if ($LASTEXITCODE -ne 0) { $lines | Set-Content $Report -Encoding UTF8; throw "Build fallo. Ver $Report" }
+cmd.exe /d /c "npm run test:e2e" 2>&1 | Tee-Object -Variable e2eOut
+$lines += "=== E2E ==="; $lines += $e2eOut
 $lines | Set-Content $Report -Encoding UTF8
-if ($LASTEXITCODE -ne 0) { throw "Build fallo. Ver $Report" }
+if ($LASTEXITCODE -ne 0) { throw "Pruebas E2E fallaron. Ver $Report" }
 Write-Host "Validacion completada: $Report" -ForegroundColor Green

@@ -1,21 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+
+const STORAGE_KEY = "growth-theme";
+const CHANGE_EVENT = "growth-theme-change";
+
+function subscribe(onChange: () => void) {
+  window.addEventListener(CHANGE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(CHANGE_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+function isLightStored(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === "light";
+  } catch {
+    return false;
+  }
+}
 
 export function ThemeToggle() {
-  const [light, setLight] = useState(false);
+  // The stored preference is the source of truth; the server always renders dark.
+  const light = useSyncExternalStore(subscribe, isLightStored, () => false);
+
   useEffect(() => {
-    const stored = localStorage.getItem("growth-theme");
-    if (stored === "light") {
-      document.documentElement.classList.add("light");
-      setLight(true);
-    }
-  }, []);
+    document.documentElement.classList.toggle("light", light);
+  }, [light]);
+
   function toggle() {
-    const next = !light;
-    setLight(next);
-    document.documentElement.classList.toggle("light", next);
-    localStorage.setItem("growth-theme", next ? "light" : "dark");
+    try {
+      localStorage.setItem(STORAGE_KEY, light ? "dark" : "light");
+    } catch {
+      // Storage can be unavailable (private mode); the theme then stays as is.
+    }
+    window.dispatchEvent(new Event(CHANGE_EVENT));
   }
+
   return <button className="btn small" onClick={toggle} type="button" aria-label="Cambiar tema">{light ? "🌙 Oscuro" : "☀️ Claro"}</button>;
 }

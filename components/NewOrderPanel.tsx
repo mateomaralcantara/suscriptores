@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { apiRequest } from "@/lib/client/request";
 import { orderPlatforms, orderServices } from "@/lib/order-services";
 
 export function NewOrderPanel() {
@@ -10,6 +11,10 @@ export function NewOrderPanel() {
   const [quantity, setQuantity] = useState(orderServices[0].min);
   const [link, setLink] = useState("https://example.com/campaign/demo");
   const [message, setMessage] = useState("");
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // One key per form attempt: a double click or a retry can never charge twice.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
 
   const filteredServices = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -40,13 +45,27 @@ export function NewOrderPanel() {
     setMessage("");
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (quantity < selected.min || quantity > selected.max) {
-      setMessage(`La cantidad debe estar entre ${selected.min.toLocaleString()} y ${selected.max.toLocaleString()}.`);
+    if (!Number.isInteger(quantity) || quantity < selected.min || quantity > selected.max) {
+      setFailed(true);
+      setMessage(`La cantidad debe ser un entero entre ${selected.min.toLocaleString()} y ${selected.max.toLocaleString()}.`);
       return;
     }
-    setMessage(`Pedido sandbox creado: ${selected.id} · US$${charge.toFixed(4)}. No se envió a un proveedor real.`);
+    setBusy(true);
+    const result = await apiRequest<{ data: { id: string; cost: number } }>("/api/v1/orders", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: { serviceId: selected.id, link, quantity },
+    });
+    setBusy(false);
+    setFailed(!result.ok);
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+    setIdempotencyKey(crypto.randomUUID());
+    setMessage(`Pedido ${result.data.data.id} creado · US$${result.data.data.cost.toFixed(4)} descontados de tu cartera.`);
   }
 
   return (
@@ -115,7 +134,7 @@ export function NewOrderPanel() {
         <div className="form-grid">
           <div className="field full">
             <label htmlFor="link">Link</label>
-            <input id="link" onChange={(event) => setLink(event.target.value)} required type="url" value={link} />
+            <input id="link" onChange={(event) => { setLink(event.target.value); setIdempotencyKey(crypto.randomUUID()); }} required type="url" value={link} />
           </div>
           <div className="field">
             <label htmlFor="quantity">Quantity</label>
@@ -123,7 +142,7 @@ export function NewOrderPanel() {
               id="quantity"
               max={selected.max}
               min={selected.min}
-              onChange={(event) => setQuantity(Number(event.target.value))}
+              onChange={(event) => { setQuantity(Number(event.target.value)); setIdempotencyKey(crypto.randomUUID()); }}
               required
               type="number"
               value={quantity}
@@ -141,11 +160,11 @@ export function NewOrderPanel() {
         </div>
 
         <div className="order-actions">
-          <button className="btn primary submit-order" type="submit">Submit sandbox order</button>
+          <button className="btn primary submit-order" disabled={busy} type="submit">{busy ? "Sending…" : "Submit order"}</button>
           <button className="btn" onClick={() => setMessage("")} type="button">Clear notice</button>
         </div>
 
-        {message ? <div className="toast">{message}</div> : null}
+        {message ? <div className={failed ? "toast error" : "toast"} role="status">{message}</div> : null}
         <p className="sandbox-note">CLASSROOM / SANDBOX: this interface is ready to consume an approved provider API, but no real provider is enabled.</p>
       </form>
 

@@ -1,2 +1,9 @@
-import { json } from "@/lib/api";
-export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; return json({ success: true, orderId: id, refillId: `REF-${Date.now()}`, status: "pending", mode: "sandbox" }, { status: 202 }); }
+import { authenticate, handle, json } from "@/lib/api";
+import { getStore } from "@/lib/store";
+
+export const POST = handle(async (request, { params }: { params: Promise<{ id: string }> }) => {
+  const user = await authenticate(request);
+  const { id } = await params;
+  const refill = getStore().requestRefill(user, id);
+  return json({ success: true, data: { id: refill.id, orderId: refill.orderId, status: refill.status, createdAt: refill.createdAt } }, { status: 202 });
+});
