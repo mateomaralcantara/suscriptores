@@ -1,3 +1,35 @@
 import { PageHeader } from "@/components/PageHeader";
-const groups = ["Roles y permisos RBAC","Monedas e impuestos","Márgenes y precios","Correo y plantillas","Webhooks y API","Seguridad y cifrado","Modo mantenimiento","Copias de seguridad","Traducciones","Cupones y promociones","Límites y rate limiting","Logs estructurados"];
-export default function Page() { return <><PageHeader title="Configuración administrativa" description="Parámetros globales del sistema, seguridad, facturación y operación." /><div className="grid three">{groups.map((group) => <article className="card" key={group}><h3>{group}</h3><p className="muted">Módulo configurado para modo sandbox. Los cambios quedan simulados.</p><button className="btn small" type="button">Configurar</button></article>)}</div></>; }
+import { getSmmMarkupPercent, isSmmConfigured, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
+import { isStripeConfigured } from "@/lib/stripe";
+import { isSupabaseConfigured, requireAdmin } from "@/lib/supabase-server";
+
+export const dynamic = "force-dynamic";
+
+export default async function AdminSettingsPage() {
+  await requireAdmin();
+  const items: [string, string, string][] = [
+    ["Supabase", isSupabaseConfigured() ? "Configurado" : "Falta", "SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY"],
+    ["Proveedor SMM", isSmmConfigured() ? "Configurado" : "Falta", "SMM_PANEL_API_URL, SMM_PANEL_API_KEY"],
+    ["Pedidos reales", smmLiveOrdersEnabled() ? "Activos" : "Bloqueados", "SMM_LIVE_ORDERS_ENABLED"],
+    ["Margen", `${getSmmMarkupPercent()}%`, "SMM_MARKUP_PERCENT"],
+    ["Pagos con tarjeta", isStripeConfigured() ? "Configurado" : "Falta", "STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET"],
+    ["Sincronización automática", process.env.CRON_SECRET ? "Configurada" : "Falta", "CRON_SECRET (+ secretos APP_URL y CRON_SECRET en GitHub)"],
+    ["Administradores", `${(process.env.ADMIN_EMAILS ?? "").split(",").filter((item) => item.trim()).length} correos`, "ADMIN_EMAILS"],
+  ];
+  return (
+    <>
+      <PageHeader title="Configuración" description="Estado de la configuración del servidor. Los valores secretos nunca se muestran." />
+      <div className="card">
+        <div className="list">
+          {items.map(([label, value, vars]) => (
+            <div className="list-item" key={label}>
+              <span>{label}<br /><small className="muted">{vars}</small></span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+        <p className="muted" style={{ marginTop: 14 }}>Estos valores se cambian en las variables de entorno del servidor y requieren reiniciar la aplicación.</p>
+      </div>
+    </>
+  );
+}

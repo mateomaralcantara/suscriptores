@@ -51,3 +51,14 @@ test("rateLimit blocks after the limit and resets after the window", () => {
   assert.equal(blocked.retryAfterSeconds, 1);
   assert.equal(rateLimit(key, 3, 1000, 1000).ok, true, "new window");
 });
+
+test("isCronAuthorized requires the exact bearer secret", async () => {
+  const { isCronAuthorized } = await import("../../lib/cron-auth.ts");
+  const secret = "s3cret-value-long-enough";
+  assert.equal(isCronAuthorized(`Bearer ${secret}`, secret), true);
+  assert.equal(isCronAuthorized(`Bearer ${secret}x`, secret), false);
+  assert.equal(isCronAuthorized(secret, secret), false, "missing Bearer");
+  assert.equal(isCronAuthorized(null, secret), false);
+  assert.equal(isCronAuthorized("Bearer short", "short"), false, "secrets under 16 chars are refused");
+  assert.equal(isCronAuthorized("Bearer ", undefined), false);
+});

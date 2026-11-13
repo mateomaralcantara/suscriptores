@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-export const ACCESS_COOKIE = "gr_access_token";
-export const REFRESH_COOKIE = "gr_refresh_token";
+export { ACCESS_COOKIE, REFRESH_COOKIE } from "@/lib/auth-cookies";
+import { ACCESS_COOKIE } from "@/lib/auth-cookies";
 
 export type SupabaseUser = {
   id: string;
@@ -282,4 +282,32 @@ export async function requireAdmin() {
   if (!user) redirect("/login");
   if (!isAdminUser(user)) redirect("/dashboard");
   return user;
+}
+
+/** Keeps profiles.role in sync with ADMIN_EMAILS (database functions check the role). */
+export async function ensureAdminProfile(user: SupabaseUser) {
+  const profile = await ensureProfileForUser(user);
+  if (isAdminUser(user) && profile.role !== "admin") {
+    const updated = await serviceRoleRest<ProfileRow[]>(`profiles?id=eq.${encodeURIComponent(profile.id)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({ role: "admin", updated_at: new Date().toISOString() }),
+    });
+    return updated[0] ?? profile;
+  }
+  return profile;
+}
+
+/** API guard for admin routes: returns the admin's user and profile, or a 401/403 response. */
+export async function requireAdminApi(request: Request) {
+  const user = await getUserFromRequest(request);
+  if (!user) return { error: Response.json({ success: false, error: "No autorizado." }, { status: 401 }) } as const;
+  if (!isAdminUser(user)) return { error: Response.json({ success: false, error: "Prohibido." }, { status: 403 }) } as const;
+  return { user, profile: await ensureAdminProfile(user) } as const;
+}
+
+export async function getSessionProfile() {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  return { user, profile: await ensureProfileForUser(user) };
 }

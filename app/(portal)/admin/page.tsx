@@ -3,15 +3,13 @@ import { PageHeader } from "@/components/PageHeader";
 import { isSmmConfigured, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 
 const modules = [
-  ["Usuarios", "/admin/users"],
-  ["Servicios", "/admin/services"],
-  ["Proveedores", "/admin/providers"],
-  ["Pedidos", "/admin/orders"],
-  ["Pagos", "/admin/payments"],
-  ["Transacciones", "/admin/transactions"],
-  ["Tickets", "/admin/tickets"],
-  ["Afiliados", "/admin/affiliates"],
-  ["Paneles secundarios", "/admin/child-panels"],
+  ["Usuarios y saldos", "/admin/users"],
+  ["Pedidos y conciliación", "/admin/orders"],
+  ["Libro de movimientos", "/admin/transactions"],
+  ["Pagos (recargas)", "/admin/payments"],
+  ["Tickets de soporte", "/admin/tickets"],
+  ["Servicios y margen", "/admin/services"],
+  ["Proveedor", "/admin/providers"],
   ["Auditoría", "/admin/audit"],
   ["Configuración", "/admin/settings"],
 ];

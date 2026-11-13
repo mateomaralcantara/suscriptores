@@ -1,41 +1,33 @@
 import { NextResponse } from "next/server";
-import { ACCESS_COOKIE, REFRESH_COOKIE, signInWithPassword } from "@/lib/supabase-server";
-import { errorMessage } from "@/lib/api";
+import { signInWithPassword } from "@/lib/supabase-server";
+import { setSessionCookies } from "@/lib/auth-cookies";
+import { readJsonObject } from "@/lib/api";
+import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
-  try {
-    const body = await request.json() as { email?: string; password?: string };
-    const email = String(body.email ?? "").trim().toLowerCase();
-    const password = String(body.password ?? "");
-    if (!email || !password) {
-      return NextResponse.json({ ok: false, error: "Correo y contraseña son obligatorios." }, { status: 400 });
-    }
+  const ip = clientIp(request);
+  const limitedIp = rateLimit(`login:ip:${ip}`, 20, 15 * 60 * 1000);
+  if (!limitedIp.ok) return tooManyRequests(limitedIp.retryAfterSeconds);
 
+  const body = (await readJsonObject(request)) ?? {};
+  const email = String(body.email ?? "").trim().toLowerCase();
+  const password = String(body.password ?? "");
+  if (!email || !password) {
+    return NextResponse.json({ ok: false, error: "Correo y contraseña son obligatorios." }, { status: 400 });
+  }
+  const limitedEmail = rateLimit(`login:email:${email}`, 8, 15 * 60 * 1000);
+  if (!limitedEmail.ok) return tooManyRequests(limitedEmail.retryAfterSeconds);
+
+  try {
     const session = await signInWithPassword(email, password);
     if (!session.access_token) {
-      return NextResponse.json({ ok: false, error: "Supabase no devolvió una sesión válida." }, { status: 502 });
+      return NextResponse.json({ ok: false, error: "No fue posible iniciar sesión." }, { status: 502 });
     }
-
     const response = NextResponse.json({ ok: true, user: { id: session.user.id, email: session.user.email } });
-    const secure = process.env.NODE_ENV === "production";
-    response.cookies.set(ACCESS_COOKIE, session.access_token, {
-      httpOnly: true,
-      secure,
-      sameSite: "lax",
-      path: "/",
-      maxAge: session.expires_in ?? 3600,
-    });
-    if (session.refresh_token) {
-      response.cookies.set(REFRESH_COOKIE, session.refresh_token, {
-        httpOnly: true,
-        secure,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30,
-      });
-    }
+    setSessionCookies(response, session);
     return response;
   } catch (error) {
-    return NextResponse.json({ ok: false, error: errorMessage(error) }, { status: 401 });
+    console.error("[auth/login]", error instanceof Error ? error.message : error);
+    return NextResponse.json({ ok: false, error: "Correo o contraseña incorrectos." }, { status: 401 });
   }
 }

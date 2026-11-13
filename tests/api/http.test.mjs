@@ -5,6 +5,10 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
+import { signStripePayload } from "../../lib/stripe-signature.ts";
+
+const WEBHOOK_SECRET = "whsec_http_test_secret";
+const CRON_SECRET = "cron-secret-for-http-tests";
 
 if (!fs.existsSync(".next/BUILD_ID")) throw new Error("No hay build. Ejecuta `npm run build` antes de `npm run test:api`.");
 
@@ -22,7 +26,7 @@ let base;
 before(async () => {
   const port = await freePort();
   base = `http://127.0.0.1:${port}`;
-  const env = { ...process.env, SUPABASE_URL: "", SUPABASE_ANON_KEY: "", SMM_PANEL_API_URL: "", SMM_PANEL_API_KEY: "", SMM_LIVE_ORDERS_ENABLED: "false" };
+  const env = { ...process.env, SUPABASE_URL: "", SUPABASE_ANON_KEY: "", SMM_PANEL_API_URL: "", SMM_PANEL_API_KEY: "", SMM_LIVE_ORDERS_ENABLED: "false", STRIPE_SECRET_KEY: "", STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, CRON_SECRET };
   server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(port), "-H", "127.0.0.1"], { stdio: "ignore", env });
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
@@ -53,6 +57,10 @@ test("health reports dependency configuration without secrets", async () => {
 test("pages send security headers and no x-powered-by", async () => {
   const res = await fetch(`${base}/login`);
   assert.equal(res.status, 200);
+  const csp = res.headers.get("content-security-policy") ?? "";
+  assert.match(csp, /default-src 'self'/);
+  assert.match(csp, /frame-ancestors 'none'/);
+  assert.doesNotMatch(csp, /unsafe-eval/, "no unsafe-eval in production");
   assert.equal(res.headers.get("x-content-type-options"), "nosniff");
   assert.equal(res.headers.get("x-frame-options"), "DENY");
   assert.equal(res.headers.get("x-powered-by"), null);
@@ -73,6 +81,8 @@ test("every /api/v1 endpoint answers 401 without a session", async () => {
     ["GET", "/api/v1/services"], ["GET", "/api/v1/orders"], ["POST", "/api/v1/orders"], ["POST", "/api/v1/orders/bulk"],
     ["GET", "/api/v1/orders/ORD-1"], ["POST", "/api/v1/orders/ORD-1/cancel"], ["POST", "/api/v1/orders/ORD-1/refill"],
     ["GET", "/api/v1/balance"], ["GET", "/api/v1/transactions"], ["GET", "/api/auth/me"],
+    ["POST", "/api/payments/checkout"], ["GET", "/api/tickets"], ["POST", "/api/tickets"],
+    ["POST", "/api/admin/wallets/adjust"], ["POST", "/api/admin/orders/x/resolve"],
   ];
   for (const [method, path] of calls) {
     const res = await fetch(`${base}${path}`, { method, headers: { "content-type": "application/json" }, body: method === "POST" ? "{}" : undefined });
@@ -97,4 +107,66 @@ test("logout clears the session cookies", async () => {
   const cookies = res.headers.getSetCookie().join("\n");
   assert.match(cookies, /gr_access_token=;/);
   assert.match(cookies, /gr_refresh_token=;/);
+});
+
+test("an invalid refresh token sends pages to /login and clears the cookies", async () => {
+  const res = await fetch(`${base}/dashboard`, { redirect: "manual", headers: { cookie: "gr_refresh_token=invalid" } });
+  assert.ok([307, 308].includes(res.status));
+  assert.match(res.headers.getSetCookie().join("\n"), /gr_refresh_token=;/);
+});
+
+test("login is rate limited per email", async () => {
+  const email = `rate-${Date.now()}@example.com`;
+  const statuses = [];
+  for (let i = 0; i < 9; i += 1) statuses.push((await post("/api/auth/login", { email, password: "wrong-password" })).status);
+  assert.deepEqual(statuses.slice(0, 8), Array(8).fill(401));
+  assert.equal(statuses[8], 429);
+});
+
+test("payments report Stripe as not configured", async () => {
+  const body = await (await fetch(`${base}/api/payments`)).json();
+  assert.equal(body.enabled, false);
+  assert.equal(body.min, 5);
+});
+
+test("stripe webhook rejects bad signatures and ignores unrelated events", async () => {
+  const payload = JSON.stringify({ id: "evt_1", type: "customer.created", data: { object: {} } });
+  const bad = await fetch(`${base}/api/webhooks/stripe`, { method: "POST", body: payload, headers: { "stripe-signature": "t=1,v1=bad" } });
+  assert.equal(bad.status, 400);
+  const tampered = await fetch(`${base}/api/webhooks/stripe`, {
+    method: "POST",
+    body: payload.replace("evt_1", "evt_2"),
+    headers: { "stripe-signature": signStripePayload(payload, WEBHOOK_SECRET, Math.floor(Date.now() / 1000)) },
+  });
+  assert.equal(tampered.status, 400);
+  const good = await fetch(`${base}/api/webhooks/stripe`, {
+    method: "POST",
+    body: payload,
+    headers: { "stripe-signature": signStripePayload(payload, WEBHOOK_SECRET, Math.floor(Date.now() / 1000)) },
+  });
+  assert.equal(good.status, 200);
+  assert.equal((await good.json()).ignored, true);
+});
+
+test("stripe webhook leaves unpaid checkouts pending", async () => {
+  const payload = JSON.stringify({
+    id: "evt_3",
+    type: "checkout.session.completed",
+    data: { object: { id: "cs_1", payment_status: "unpaid", amount_total: 1000, currency: "usd", client_reference_id: "p", metadata: { purpose: "wallet_topup" } } },
+  });
+  const res = await fetch(`${base}/api/webhooks/stripe`, {
+    method: "POST",
+    body: payload,
+    headers: { "stripe-signature": signStripePayload(payload, WEBHOOK_SECRET, Math.floor(Date.now() / 1000)) },
+  });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).pending, true);
+});
+
+test("cron endpoint requires the secret", async () => {
+  assert.equal((await fetch(`${base}/api/cron/sync-orders`)).status, 401);
+  assert.equal((await fetch(`${base}/api/cron/sync-orders`, { headers: { authorization: "Bearer nope" } })).status, 401);
+  const ok = await fetch(`${base}/api/cron/sync-orders`, { headers: { authorization: `Bearer ${CRON_SECRET}` } });
+  assert.equal(ok.status, 500, "authorized, then fails generically because Supabase is not configured");
+  assert.doesNotMatch(await ok.text(), /Supabase/);
 });

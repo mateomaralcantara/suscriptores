@@ -1,5 +1,16 @@
-import { AdminEntityPage } from "@/components/AdminEntityPage";
-import { StatusBadge } from "@/components/StatusBadge";
-import { transactions } from "@/lib/demo-data";
-import { money } from "@/lib/format";
-export default function Page() { return <AdminEntityPage title="Pagos" description="Stripe Test Mode, transferencias simuladas, cupones, bonos y comprobantes." headers={["Pago","Método","Monto","Fecha","Estado"]} rows={transactions.slice(0,12).map((t) => [t.id,t.type,money(t.amount),t.date,<StatusBadge status={t.status} key={t.id} />])} stats={[["Aprobados","US$18,420"],["Pendientes","US$1,285"],["Bonos","US$740"],["Rechazados","18"]]} />; }
+import { AdminTransactionsTable } from "@/components/AdminTransactionsTable";
+import { PageHeader } from "@/components/PageHeader";
+import { isStripeConfigured } from "@/lib/stripe";
+import { requireAdmin } from "@/lib/supabase-server";
+
+export const dynamic = "force-dynamic";
+
+export default async function AdminPaymentsPage() {
+  await requireAdmin();
+  return (
+    <>
+      <PageHeader title="Pagos" description={`Recargas con tarjeta acreditadas. Stripe: ${isStripeConfigured() ? "configurado" : "NO configurado"}.`} />
+      <AdminTransactionsTable type="topup" />
+    </>
+  );
+}

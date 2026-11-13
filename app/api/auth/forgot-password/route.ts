@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
 import { sendPasswordRecovery } from "@/lib/supabase-server";
-import { errorMessage } from "@/lib/api";
+import { readJsonObject } from "@/lib/api";
+import { clientIp, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  const limited = rateLimit(`forgot:${clientIp(request)}`, 5, 60 * 60 * 1000);
+  if (!limited.ok) return tooManyRequests(limited.retryAfterSeconds);
+
+  const body = (await readJsonObject(request)) ?? {};
+  const email = String(body.email ?? "").trim().toLowerCase();
+  if (!email) return NextResponse.json({ ok: false, error: "El correo es obligatorio." }, { status: 400 });
   try {
-    const body = await request.json() as { email?: string };
-    const email = String(body.email ?? "").trim().toLowerCase();
-    if (!email) return NextResponse.json({ ok: false, error: "El correo es obligatorio." }, { status: 400 });
     await sendPasswordRecovery(email);
-    return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: errorMessage(error) }, { status: 400 });
+    // Same answer whether or not the account exists, so the endpoint cannot be used to discover emails.
+    console.error("[auth/forgot-password]", error instanceof Error ? error.message : error);
   }
+  return NextResponse.json({ ok: true });
 }

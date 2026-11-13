@@ -1,24 +1,58 @@
 import { PageHeader } from "@/components/PageHeader";
 
 const requestExample = `POST /api/v1/orders
-Idempotency-Key: order-unique-001
+Authorization: Bearer <access_token>
+Idempotency-Key: 6f1c2a4e-pedido-001
 Content-Type: application/json
 
 {
-  "serviceId": "demo-service-001",
-  "target": "https://example.com/campaign/demo",
-  "quantity": 100
-}`;
-const responseExample = `{
-  "success": true,
-  "orderId": "ORD-DEMO-000001",
-  "status": "queued",
-  "cost": 1.25,
-  "currency": "USD",
-  "mode": "sandbox"
+  "serviceId": "1234",
+  "link": "https://instagram.com/p/abc",
+  "quantity": 1000
 }`;
 
+const responseExample = `{
+  "success": true,
+  "order": {
+    "id": "6c0e…",
+    "publicId": "ORD-1A2B3C4D5E6F",
+    "status": "queued",
+    "cost": 1.3,
+    "currency": "USD"
+  }
+}`;
+
+const endpoints: [string, string][] = [
+  ["GET /api/v1/services", "Catálogo con precios por 1000"],
+  ["GET /api/v1/balance", "Saldo disponible y reservado"],
+  ["POST /api/v1/orders", "Crear pedido (idempotente)"],
+  ["GET /api/v1/orders", "Tus pedidos"],
+  ["GET /api/v1/orders/:id", "Detalle y estado actualizado"],
+  ["POST /api/v1/orders/:id/cancel", "Solicitar cancelación"],
+  ["POST /api/v1/orders/:id/refill", "Solicitar refill"],
+  ["GET /api/v1/transactions", "Movimientos de saldo"],
+];
+
 export default function ApiDocsPage() {
-  const endpoints = ["GET /api/v1/services", "GET /api/v1/balance", "POST /api/v1/orders", "POST /api/v1/orders/bulk", "GET /api/v1/orders/:id", "POST /api/v1/orders/:id/cancel", "POST /api/v1/orders/:id/refill", "GET /api/v1/refills/:id", "GET /api/v1/transactions"];
-  return <><PageHeader title="API para revendedores" description="REST API sandbox con idempotencia, rate limiting, HMAC y webhooks simulados." /><div className="grid two"><section className="card"><h3>Endpoints</h3><div className="list">{endpoints.map((endpoint) => <div className="list-item" key={endpoint}><code>{endpoint}</code><span className="badge active">sandbox</span></div>)}</div></section><section className="card"><h3>Autenticación</h3><p className="muted">Usa una clave de demostración en el encabezado X-API-Key. Ninguna clave real debe exponerse en el navegador.</p><div className="code">X-API-Key: demo_classroom_key<br />Idempotency-Key: unique-request-id</div><h3 style={{ marginTop: 20 }}>Webhooks</h3><p className="muted">Eventos firmados: order.created, order.completed, payment.approved, ticket.created.</p></section></div><section className="card" style={{ marginTop: 18 }}><h3>Crear pedido</h3><pre className="code"><code>{requestExample}</code></pre><h3>Respuesta</h3><pre className="code"><code>{responseExample}</code></pre></section></>;
+  return (
+    <>
+      <PageHeader title="API" description="Integra tus pedidos con la misma cuenta y saldo del panel." />
+      <div className="grid two">
+        <section className="card">
+          <h3>Endpoints</h3>
+          <div className="list">{endpoints.map(([endpoint, text]) => <div className="list-item" key={endpoint}><code>{endpoint}</code><span className="muted">{text}</span></div>)}</div>
+        </section>
+        <section className="card">
+          <h3>Autenticación</h3>
+          <p className="muted">
+            Envía el token de sesión de tu cuenta en <code>Authorization: Bearer</code>. Repite la misma <code>Idempotency-Key</code> al reintentar
+            un pedido: nunca se cobrará dos veces. Errores: 400 datos inválidos, 401 sin sesión, 402 saldo insuficiente, 409 conflicto, 502 proveedor.
+          </p>
+          <h3 style={{ marginTop: 20 }}>Ejemplo</h3>
+          <pre className="code">{requestExample}</pre>
+          <pre className="code">{responseExample}</pre>
+        </section>
+      </div>
+    </>
+  );
 }

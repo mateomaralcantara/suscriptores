@@ -54,3 +54,30 @@ test("admin access requires a confirmed email", () => {
   assert.match(source, /email_confirmed_at/);
   assert.doesNotMatch(fs.readFileSync("app/(portal)/admin/layout.tsx", "utf8"), /isAdminEmail\(/);
 });
+
+test("every admin API route uses requireAdminApi", () => {
+  for (const file of walk("app/api/admin").filter((f) => f.endsWith("route.ts"))) {
+    assert.match(fs.readFileSync(file, "utf8"), /requireAdminApi\(request\)/, file);
+  }
+});
+
+test("every admin page that reads data calls requireAdmin()", () => {
+  for (const file of walk("app/(portal)/admin").filter((f) => f.endsWith("page.tsx"))) {
+    const source = fs.readFileSync(file, "utf8");
+    if (/serviceRoleRest|getSmm|listAll|AdminTransactionsTable/.test(source)) assert.match(source, /await requireAdmin\(\)/, file);
+  }
+});
+
+test("ticket, payment and cron routes authenticate", () => {
+  for (const file of walk("app/api/tickets").filter((f) => f.endsWith("route.ts"))) assert.match(fs.readFileSync(file, "utf8"), /getUserFromRequest\(request\)/, file);
+  assert.match(fs.readFileSync("app/api/payments/checkout/route.ts", "utf8"), /getUserFromRequest\(request\)/);
+  assert.match(fs.readFileSync("app/api/cron/sync-orders/route.ts", "utf8"), /isCronAuthorized/);
+  assert.match(fs.readFileSync("app/api/webhooks/stripe/route.ts", "utf8"), /verifyStripeSignature/);
+});
+
+test("no page ships demo data", () => {
+  assert.equal(fs.existsSync("lib/demo-data.ts"), false);
+  for (const file of walk("app").filter((f) => f.endsWith(".tsx"))) {
+    assert.doesNotMatch(fs.readFileSync(file, "utf8"), /demo-data|SandboxForm|sandbox_card/, file);
+  }
+});

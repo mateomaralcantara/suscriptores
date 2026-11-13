@@ -37,7 +37,13 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
 - `lib/providers/smm-panel.ts` – adaptador del proveedor (`SmmPanelError.ambiguous` = no se sabe si el pedido se creó).
 - `lib/order-status.ts` – reglas puras: estados, cancel/refill, reembolsos, margen y coste en centavos.
 - `lib/api.ts` – `json`, `readJsonObject`, `internalError` (registra el error y responde genérico).
-- `database/migrations/` – `001` esquema, `002` núcleo en vivo, `003` liquidación/reembolsos (+ corrección de `reserve_smm_order`).
+- `lib/stripe.ts` / `lib/stripe-signature.ts` – Checkout de recargas y verificación de firma del webhook.
+- `lib/order-sync.ts` – sincronización de pedidos abiertos (`/api/cron/sync-orders`, protegido con `CRON_SECRET`; lo llama `.github/workflows/sync-orders.yml`).
+- `lib/auth-cookies.ts` – cookies de sesión y renovación con el refresh token (la hace `proxy.ts`).
+- `lib/rate-limit.ts` – límite de intentos en memoria (login, registro, recuperación, checkout, tickets).
+- `lib/tickets.ts` – soporte; el cliente nunca recibe notas internas.
+- `app/api/admin/*` – ajuste de saldo y conciliación de pedidos ambiguos (`requireAdminApi`).
+- `database/migrations/` – `001` esquema, `002` núcleo en vivo, `003` liquidación/reembolsos (+ corrección de `reserve_smm_order`), `004` recargas, ajustes, conciliación y tickets.
 
 ## Flujo de dinero
 
@@ -46,6 +52,8 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
    Respuesta ambigua → `mark_smm_order_unknown` (queda reservado hasta conciliar).
 3. `apply_provider_status` – aplica el estado del proveedor; `canceled` reembolsa todo y `partial` la parte no entregada, una sola vez.
 4. `request_order_cancel` – marca `cancel_requested`; el reembolso llega cuando el proveedor confirma `canceled`.
+5. `credit_wallet_topup` – acredita un pago de Stripe una sola vez (referencia `topup:<session id>`).
+6. `admin_adjust_wallet` / `resolve_unknown_order` – acciones de admin, siempre con `audit_logs`.
 
 ## Convenciones
 
@@ -54,4 +62,5 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
 - En PL/pgSQL con `returns table(...)`, califica las columnas (`orders.status`): los nombres de salida chocan con las columnas.
 - Admin = correo en `ADMIN_EMAILS` **y** confirmado (`isAdminUser`), nunca solo el correo.
 - `lib/order-status.ts` y `lib/order-services.ts` no usan alias ni imports de runtime: las pruebas los importan directamente.
+- No muestres datos de ejemplo: un módulo sin backend usa `ComingSoon`.
 - Textos visibles al usuario en español.

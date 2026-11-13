@@ -52,6 +52,30 @@ Content-Type: application/json
 - `POST /api/v1/orders/:id/refill` – `202`; `409` si el pedido no está `completed`/`partial`.
 - `POST /api/v1/orders/bulk` – `501`, deshabilitado hasta tener reserva atómica por fila.
 
+## Recargas
+
+- `GET /api/payments` – `{ enabled, min, max, currency }`.
+- `POST /api/payments/checkout` `{ amount }` (USD, 5–2000) → `201 { url }` de Stripe Checkout; `503` si Stripe no está configurado; `429` si se abusa.
+- `POST /api/webhooks/stripe` – solo Stripe (firma `Stripe-Signature`). Acredita una vez por sesión de Checkout.
+
+## Soporte
+
+- `GET /api/tickets` · `POST /api/tickets` `{ subject, category, priority, message }` → `201 { id }`.
+- `POST /api/tickets/:id/messages` `{ message }` · `POST /api/tickets/:id/status` `{ status: "closed" }`.
+
+## Administración (correo en `ADMIN_EMAILS` y confirmado)
+
+- `POST /api/admin/wallets/adjust` `{ profileId, amount, reason }` – ajuste firmado en USD; queda en auditoría.
+- `POST /api/admin/orders/:id/resolve` `{ providerOrderId? }` – con ID confirma y cobra; sin ID devuelve la reserva.
+
+## Tareas programadas
+
+- `GET|POST /api/cron/sync-orders` con `Authorization: Bearer <CRON_SECRET>` – actualiza hasta 100 pedidos abiertos y aplica reembolsos.
+
+## Límites
+
+Login: 8 intentos por correo y 20 por IP cada 15 min · registro y recuperación: 5 por IP y hora · checkout: 10 cada 10 min · tickets: 10 por hora. Respuesta `429` con `Retry-After`.
+
 ## Estados de un pedido
 
 `pending_provider` → `queued` → `processing` → `completed` | `partial` | `canceled`
