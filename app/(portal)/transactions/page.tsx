@@ -12,6 +12,8 @@ import { money } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+const TYPE_LABELS: Record<string, string> = { topup: "Recarga", order: "Pedido", refund: "Reembolso", adjustment: "Ajuste" };
+
 export default async function TransactionsPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -21,8 +23,9 @@ export default async function TransactionsPage() {
     listTransactionsForProfile(profile.id),
   ]);
 
-  const deposits = transactions.filter((tx) => tx.type === "deposit" && tx.status === "completed").reduce((sum, tx) => sum + tx.amount_minor, 0);
-  const orders = transactions.filter((tx) => tx.type === "order" && tx.status === "completed").reduce((sum, tx) => sum + tx.amount_minor, 0);
+  const sum = (type: string) => transactions.filter((tx) => tx.type === type && tx.status === "completed").reduce((total, tx) => total + tx.amount_minor, 0);
+  const deposits = sum("topup") + sum("adjustment");
+  const orders = sum("order") - sum("refund");
 
   return (
     <>
@@ -30,8 +33,8 @@ export default async function TransactionsPage() {
       <div className="grid four" style={{ marginBottom: 18 }}>
         <div className="card"><span className="muted">Disponible</span><h3>{money((wallet?.available_minor ?? 0) / 100)}</h3></div>
         <div className="card"><span className="muted">Reservado</span><h3>{money((wallet?.reserved_minor ?? 0) / 100)}</h3></div>
-        <div className="card"><span className="muted">Depósitos confirmados</span><h3>{money(deposits / 100)}</h3></div>
-        <div className="card"><span className="muted">Consumido en pedidos</span><h3>{money(orders / 100)}</h3></div>
+        <div className="card"><span className="muted">Recargas y ajustes</span><h3>{money(deposits / 100)}</h3></div>
+        <div className="card"><span className="muted">Consumido (neto de reembolsos)</span><h3>{money(orders / 100)}</h3></div>
       </div>
       {transactions.length === 0 ? (
         <div className="card"><span className="muted">No hay transacciones registradas.</span></div>
@@ -40,7 +43,7 @@ export default async function TransactionsPage() {
           headers={["Referencia", "Tipo", "Monto", "Fecha", "Estado"]}
           rows={transactions.map((tx) => [
             tx.reference,
-            tx.type,
+            TYPE_LABELS[tx.type] ?? tx.type,
             money(tx.amount_minor / 100),
             new Date(tx.created_at).toLocaleString("es-DO"),
             <StatusBadge status={tx.status} key={tx.id} />,

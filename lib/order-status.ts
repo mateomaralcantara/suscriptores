@@ -76,3 +76,16 @@ export function isHttpUrl(value: string) {
     return false;
   }
 }
+
+/** Top-up limits in minor units (USD cents). */
+export const TOPUP_MIN_MINOR = 500;
+export const TOPUP_MAX_MINOR = 200000;
+
+/** Parses a USD amount ("25", "25.5", 25) into cents; null when invalid or outside the limits. */
+export function parseTopupAmount(value: unknown): number | null {
+  const amount = typeof value === "number" ? value : typeof value === "string" && value.trim() !== "" ? Number(value) : Number.NaN;
+  if (!Number.isFinite(amount)) return null;
+  const cents = Math.round(amount * 100);
+  if (Math.abs(amount * 100 - cents) > 1e-6) return null;
+  return cents >= TOPUP_MIN_MINOR && cents <= TOPUP_MAX_MINOR ? cents : null;
+}

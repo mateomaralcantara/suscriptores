@@ -22,7 +22,12 @@ create or replace function auth.uid() returns uuid language sql stable as $f$ se
 \i database/migrations/002_live_core.sql
 \i database/rls.sql
 \i database/migrations/003_order_settlement.sql
+\i database/migrations/004_payments_admin_support.sql
+\i database/migrations/004_payments_admin_support.sql
 SQL
-psql "$TEST_URL" -qX -v ON_ERROR_STOP=1 -f tests/db/settlement.test.sql 2>&1 | grep -E "ok -|FAIL|ERROR" 
+for file in tests/db/*.test.sql; do
+  echo "== $file"
+  psql "$TEST_URL" -qX -v ON_ERROR_STOP=1 -f "$file" 2>&1 | grep -E "ok -|FAIL|ERROR" | sed 's/^psql:[^ ]* NOTICE:  //'
+done
 psql "$DATABASE_URL" -qX -c "drop database $DB"
 echo "Database tests passed."
