@@ -89,3 +89,29 @@ export function parseTopupAmount(value: unknown): number | null {
   if (Math.abs(amount * 100 - cents) > 1e-6) return null;
   return cents >= TOPUP_MIN_MINOR && cents <= TOPUP_MAX_MINOR ? cents : null;
 }
+
+/** Drip-feed limits: number of deliveries and minutes between them. */
+export const DRIPFEED_MAX_RUNS = 100;
+export const DRIPFEED_MAX_INTERVAL = 1440;
+
+export type DripFeed = { runs: number; interval: number } | null;
+
+/**
+ * Validates optional drip-feed parameters. Returns null for a normal order, the parsed values,
+ * or an error message. With drip-feed the provider delivers `quantity` on every run, so the
+ * customer must be charged quantity × runs.
+ */
+export function parseDripFeed(runs: unknown, interval: unknown): DripFeed | string {
+  const empty = (value: unknown) => value === undefined || value === null || value === "" || value === 0 || value === "0";
+  if (empty(runs) && empty(interval)) return null;
+  const r = Number(runs);
+  const i = Number(interval);
+  if (!Number.isInteger(r) || r < 2 || r > DRIPFEED_MAX_RUNS) return `Drip-feed: las entregas deben ser un entero entre 2 y ${DRIPFEED_MAX_RUNS}.`;
+  if (!Number.isInteger(i) || i < 1 || i > DRIPFEED_MAX_INTERVAL) return `Drip-feed: el intervalo debe ser de 1 a ${DRIPFEED_MAX_INTERVAL} minutos.`;
+  return { runs: r, interval: i };
+}
+
+/** Units the provider will deliver in total (and that the customer pays for). */
+export function billableQuantity(quantity: number, dripFeed: DripFeed) {
+  return dripFeed ? quantity * dripFeed.runs : quantity;
+}

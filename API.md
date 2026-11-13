@@ -80,3 +80,30 @@ Login: 8 intentos por correo y 20 por IP cada 15 min · registro y recuperación
 
 `pending_provider` → `queued` → `processing` → `completed` | `partial` | `canceled`
 (`failed` si el proveedor lo rechaza; `provider_unknown` si la respuesta fue ambigua; `cancel_requested` mientras se cancela).
+
+## API para revendedores (formato estándar «SMM panel API v2»)
+
+`POST /api/v2` (form o JSON) con `key` y `action`. La clave se crea en **Mi cuenta → API para revendedores**
+(`gr_<prefijo>_<secreto>`; solo se guarda su hash). Límite: 120 peticiones/min por clave.
+
+| action | Parámetros | Respuesta |
+|---|---|---|
+| `services` | – | `[{ service, name, type, category, rate, min, max, refill, cancel, dripfeed }]` |
+| `add` | `service, link, quantity` (+ `runs, interval` para drip-feed; `idempotency_key` opcional) | `{ order }` |
+| `status` | `order` o `orders=ID1,ID2` | `{ charge, start_count, status, remains, currency }` |
+| `balance` | – | `{ balance, currency }` |
+| `refill` | `order` | `{ refill }` |
+| `cancel` | `orders=ID1,ID2` | `[{ order, cancel: 1 | { error } }]` |
+
+Los errores de negocio se devuelven como `{ "error": "..." }` con HTTP 200 (lo que esperan los scripts de paneles); clave inválida → 401.
+Sin `idempotency_key`, dos `add` idénticos en el mismo minuto se consideran el mismo pedido (protege de reintentos).
+
+## Drip-feed
+
+`runs` (2–100) e `interval` (1–1440 min) en `POST /api/v1/orders` o `action=add`. Solo en servicios con `dripfeed: true`.
+Se entrega `quantity` en cada tanda y **se cobra `quantity × runs`**.
+
+## Pedidos masivos
+
+`POST /api/v1/orders/bulk` `{ text, batchKey }`: una línea `servicio | enlace | cantidad` por pedido (máx. 100).
+Cada fila usa la clave `bulk:<batchKey>:<línea>`: reenviar el mismo lote no cobra dos veces. `207` con el resultado por línea.

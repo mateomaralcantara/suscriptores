@@ -170,3 +170,21 @@ test("cron endpoint requires the secret", async () => {
   assert.equal(ok.status, 500, "authorized, then fails generically because Supabase is not configured");
   assert.doesNotMatch(await ok.text(), /Supabase/);
 });
+
+test("reseller API v2 rejects missing, malformed and unknown keys", async () => {
+  const form = (body) => fetch(`${base}/api/v2`, { method: "POST", body: new URLSearchParams(body) });
+  const missing = await form({ action: "balance" });
+  assert.equal(missing.status, 401);
+  assert.deepEqual(await missing.json(), { error: "Invalid API key" });
+  assert.equal((await form({ key: "abc", action: "balance" })).status, 401);
+  const unknownKey = `gr_${"a".repeat(12)}_${"b".repeat(43)}`;
+  const unknown = await fetch(`${base}/api/v2`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: unknownKey, action: "balance" }) });
+  assert.equal(unknown.status, 500, "well-formed key reaches the database lookup, which fails generically without Supabase");
+  assert.doesNotMatch(await unknown.text(), /Supabase/);
+  assert.equal((await fetch(`${base}/api/v2`)).status, 200, "GET answers with a usage hint");
+});
+
+test("account API keys require a session", async () => {
+  assert.equal((await fetch(`${base}/api/account/api-keys`)).status, 401);
+  assert.equal((await post("/api/account/api-keys", { name: "x" })).status, 401);
+});

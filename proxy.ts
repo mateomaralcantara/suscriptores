@@ -48,6 +48,7 @@ export const config = {
     "/api/v1/:path*",
     "/api/admin/:path*",
     "/api/tickets/:path*",
+    "/api/account/:path*",
     "/api/payments/checkout",
     "/api/auth/me",
   ],

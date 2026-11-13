@@ -16,6 +16,9 @@ export function NewOrderPanel() {
   const [serviceId, setServiceId] = useState("");
   const [quantity, setQuantity] = useState(0);
   const [link, setLink] = useState("");
+  const [dripFeed, setDripFeed] = useState(false);
+  const [runs, setRuns] = useState(2);
+  const [interval, setIntervalMinutes] = useState(60);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -56,7 +59,9 @@ export function NewOrderPanel() {
   }, [services, platform, search]);
 
   const selected = services.find((service) => service.id === serviceId) ?? filteredServices[0] ?? null;
-  const charge = selected ? Math.max(0, (quantity / 1000) * selected.rate) : 0;
+  const useDripFeed = Boolean(selected?.dripfeed && dripFeed);
+  const totalUnits = useDripFeed ? quantity * runs : quantity;
+  const charge = selected ? Math.max(0, (totalUnits / 1000) * selected.rate) : 0;
 
   function selectPlatform(nextPlatform: string) {
     setPlatform(nextPlatform);
@@ -74,6 +79,7 @@ export function NewOrderPanel() {
     if (!next) return;
     setServiceId(next.id);
     setQuantity(next.min);
+    setDripFeed(false);
     setMessage("");
     setError("");
   }
@@ -100,7 +106,7 @@ export function NewOrderPanel() {
       const response = await fetch("/api/v1/orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ serviceId: selected.id, link, quantity, idempotencyKey }),
+        body: JSON.stringify({ serviceId: selected.id, link, quantity, idempotencyKey, ...(useDripFeed ? { runs, interval } : {}) }),
       });
       const result = await response.json() as {
         success?: boolean;
@@ -187,6 +193,26 @@ export function NewOrderPanel() {
             <label>Categoría</label>
             <input readOnly value={selected.category} />
           </div>
+          {selected.dripfeed ? (
+            <div className="field full">
+              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input checked={dripFeed} onChange={(event) => setDripFeed(event.target.checked)} type="checkbox" /> Drip-feed (entregar en varias tandas)
+              </label>
+              {dripFeed ? (
+                <div className="form-grid" style={{ marginTop: 8 }}>
+                  <div className="field">
+                    <label htmlFor="runs">Tandas</label>
+                    <input id="runs" max={100} min={2} onChange={(event) => setRuns(Number(event.target.value))} type="number" value={runs} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="interval">Minutos entre tandas</label>
+                    <input id="interval" max={1440} min={1} onChange={(event) => setIntervalMinutes(Number(event.target.value))} type="number" value={interval} />
+                  </div>
+                  <small className="field full">Se entregan {quantity.toLocaleString()} en cada tanda: {totalUnits.toLocaleString()} en total.</small>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <div className="field full charge-field">
             <label>Cargo estimado</label>
             <div className="charge-value">US${charge.toFixed(4)}</div>

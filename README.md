@@ -19,7 +19,7 @@ La ruta `/orders/new` incluye ahora un panel profesional con:
 ## Configuración
 
 1. Copia `.env.example` a `.env.local` y completa Supabase y el proveedor.
-2. Aplica en Supabase (SQL editor), en orden: `database/migrations/001_initial.sql`, `002_live_core.sql`, `database/rls.sql`, `003_order_settlement.sql` y `004_payments_admin_support.sql`.
+2. Aplica en Supabase (SQL editor), en orden: `database/migrations/001_initial.sql`, `002_live_core.sql`, `database/rls.sql`, `003_order_settlement.sql`, `004_payments_admin_support.sql` y `005_api_keys.sql`.
    **`003` es obligatoria:** corrige `reserve_smm_order` (sin ella todos los pedidos fallan) y añade los reembolsos por cancelación y entrega parcial.
 3. **Stripe:** crea un webhook a `<tu dominio>/api/webhooks/stripe` con los eventos `checkout.session.completed` y `checkout.session.async_payment_succeeded`, y pon `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`.
 4. **Sincronización de pedidos:** define `CRON_SECRET` en la app y, en GitHub (*Settings → Secrets → Actions*), `APP_URL` y el mismo `CRON_SECRET`. El workflow `sync-orders.yml` la llama cada 10 minutos.

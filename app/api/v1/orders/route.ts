@@ -3,25 +3,9 @@ import {
   ensureProfileForUser,
   getUserFromRequest,
   listOrdersForProfile,
-  supabaseRpc,
 } from "@/lib/supabase-server";
-import {
-  applySmmMarkup,
-  createSmmOrder,
-  getSmmServices,
-  smmLiveOrdersEnabled,
-  SmmPanelError,
-} from "@/lib/providers/smm-panel";
-import { errorMessage, internalError, readJsonObject } from "@/lib/api";
-import { isHttpUrl, orderCostMinor } from "@/lib/order-status";
-
-type ReservationRow = {
-  order_id: string;
-  public_id: string;
-  status: string;
-  cost_minor: number;
-  is_existing: boolean;
-};
+import { internalError, readJsonObject } from "@/lib/api";
+import { createLiveOrder } from "@/lib/create-order";
 
 export async function GET(request: Request) {
   const user = await getUserFromRequest(request);
@@ -39,154 +23,25 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = await getUserFromRequest(request);
   if (!user) return NextResponse.json({ success: false, error: "No autorizado." }, { status: 401 });
-  if (!smmLiveOrdersEnabled()) {
-    return NextResponse.json(
-      { success: false, error: "Los pedidos reales están deshabilitados hasta completar la configuración de producción." },
-      { status: 503 },
-    );
-  }
 
-  let reservedOrderId: string | null = null;
+  const body = await readJsonObject(request);
+  if (!body) return NextResponse.json({ success: false, error: "El cuerpo debe ser un objeto JSON válido." }, { status: 400 });
 
   try {
-    const parsed = await readJsonObject(request);
-    if (!parsed) return NextResponse.json({ success: false, error: "El cuerpo debe ser un objeto JSON válido." }, { status: 400 });
-    const body = parsed as {
-      serviceId?: string | number;
-      link?: string;
-      quantity?: number;
-      runs?: number;
-      interval?: number;
-      idempotencyKey?: string;
-    };
-
-    const serviceId = String(body.serviceId ?? "").trim();
-    const link = String(body.link ?? "").trim();
-    const quantity = Number(body.quantity);
-    const idempotencyKey = String(request.headers.get("idempotency-key") ?? body.idempotencyKey ?? "").trim().slice(0, 200);
-
-    if (!serviceId || !link || !Number.isInteger(quantity) || quantity <= 0 || !idempotencyKey) {
-      return NextResponse.json(
-        { success: false, error: "Servicio, URL, cantidad e idempotencyKey válidos son obligatorios." },
-        { status: 400 },
-      );
-    }
-    if (!isHttpUrl(link)) {
-      return NextResponse.json({ success: false, error: "La URL objetivo debe ser http(s) válida." }, { status: 400 });
-    }
-
-    const services = await getSmmServices();
-    const service = services.find((item) => String(item.service) === serviceId);
-    if (!service) return NextResponse.json({ success: false, error: "Servicio no encontrado." }, { status: 404 });
-
-    const min = Number(service.min);
-    const max = Number(service.max);
-    const providerRate = Number(service.rate);
-    if (!Number.isFinite(min) || !Number.isFinite(max) || quantity < min || quantity > max) {
-      return NextResponse.json(
-        { success: false, error: `La cantidad debe estar entre ${service.min} y ${service.max}.` },
-        { status: 400 },
-      );
-    }
-    if (!Number.isFinite(providerRate) || providerRate < 0) {
-      return NextResponse.json({ success: false, error: "El proveedor devolvió una tarifa inválida." }, { status: 502 });
-    }
-
-    const saleRate = applySmmMarkup(providerRate);
-    const costMinor = orderCostMinor(saleRate, quantity);
     const profile = await ensureProfileForUser(user);
-
-    const reservationPayload = await supabaseRpc<ReservationRow[]>("reserve_smm_order", {
-      p_auth_user_id: user.id,
-      p_external_service_id: serviceId,
-      p_target: link,
-      p_quantity: quantity,
-      p_cost_minor: costMinor,
-      p_idempotency_key: idempotencyKey,
-      p_metadata: {
-        service_name: service.name,
-        category: service.category,
-        type: service.type,
-        sale_rate: saleRate,
-        profile_id: profile.id,
-      },
+    const result = await createLiveOrder(user.id, profile, {
+      serviceId: body.serviceId,
+      link: body.link,
+      quantity: body.quantity,
+      runs: body.runs,
+      interval: body.interval,
+      idempotencyKey: request.headers.get("idempotency-key") ?? body.idempotencyKey,
     });
-
-    const reservation = Array.isArray(reservationPayload) ? reservationPayload[0] : null;
-    if (!reservation) throw new Error("No fue posible reservar el balance para el pedido.");
-    reservedOrderId = reservation.order_id;
-
-    if (reservation.is_existing) {
-      return NextResponse.json({ success: true, duplicate: true, order: reservation });
+    if (!result.ok) {
+      return NextResponse.json({ success: false, error: result.error, ...(result.orderId ? { orderId: result.orderId } : {}) }, { status: result.status });
     }
-
-    try {
-      const providerOrder = await createSmmOrder({
-        service: serviceId,
-        link,
-        quantity,
-        runs: body.runs,
-        interval: body.interval,
-      });
-      const providerOrderId = String(providerOrder.order ?? "").trim();
-      if (!providerOrderId) throw new SmmPanelError("El proveedor no devolvió un ID de pedido.", true);
-
-      const status = await supabaseRpc<string>("confirm_smm_order", {
-        p_order_id: reservation.order_id,
-        p_provider_order_id: providerOrderId,
-      });
-
-      return NextResponse.json(
-        {
-          success: true,
-          order: {
-            id: reservation.order_id,
-            publicId: reservation.public_id,
-            status: typeof status === "string" ? status : "queued",
-            cost: costMinor / 100,
-            currency: "USD",
-          },
-        },
-        { status: 201 },
-      );
-    } catch (providerError) {
-      const message = errorMessage(providerError);
-      if (providerError instanceof SmmPanelError && providerError.ambiguous) {
-        await supabaseRpc("mark_smm_order_unknown", {
-          p_order_id: reservation.order_id,
-          p_error: message,
-        });
-        return NextResponse.json(
-          {
-            success: false,
-            error: "El proveedor no confirmó la respuesta. El balance permanece reservado hasta reconciliar el pedido.",
-            orderId: reservation.public_id,
-          },
-          { status: 502 },
-        );
-      }
-
-      await supabaseRpc("fail_smm_order", {
-        p_order_id: reservation.order_id,
-        p_error: message,
-      });
-      console.error("[orders] provider rejected order", providerError);
-      return NextResponse.json(
-        { success: false, error: "El proveedor rechazó el pedido. El balance reservado fue devuelto." },
-        { status: 502 },
-      );
-    }
+    return NextResponse.json({ success: true, ...(result.duplicate ? { duplicate: true } : {}), order: result.order }, { status: result.status });
   } catch (error) {
-    const message = errorMessage(error);
-    if (message.includes("insufficient_funds")) {
-      return NextResponse.json({ success: false, error: "Balance insuficiente." }, { status: 402 });
-    }
-    if (message.includes("duplicate key") || message.includes("orders_user_id_idempotency_key")) {
-      return NextResponse.json(
-        { success: false, error: "Ya hay un pedido en curso con esta idempotencyKey.", reservedOrderId },
-        { status: 409 },
-      );
-    }
     return internalError("orders", error);
   }
 }

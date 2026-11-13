@@ -10,6 +10,7 @@ export type SmmService = {
   max: string | number;
   refill: boolean;
   cancel: boolean;
+  dripfeed?: boolean;
 };
 
 export type SmmBalance = {
@@ -141,6 +142,16 @@ export function isSmmConfigured() {
 
 export async function getSmmServices() {
   return callSmmPanel<SmmService[]>({ action: "services" });
+}
+
+let servicesCache: { at: number; data: SmmService[] } | null = null;
+
+/** Provider catalog cached for 60 s, so bulk and API orders do not refetch it per order. */
+export async function getSmmServicesCached(maxAgeMs = 60_000) {
+  if (servicesCache && Date.now() - servicesCache.at < maxAgeMs) return servicesCache.data;
+  const data = await getSmmServices();
+  servicesCache = { at: Date.now(), data };
+  return data;
 }
 
 export async function getSmmBalance() {

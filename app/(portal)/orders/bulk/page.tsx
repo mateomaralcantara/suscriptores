@@ -1,5 +1,15 @@
-import { ComingSoon } from "@/components/ComingSoon";
+import Link from "next/link";
+import { BulkOrderForm } from "@/components/BulkOrderForm";
+import { PageHeader } from "@/components/PageHeader";
+import { smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 
-export default function Page() {
-  return <ComingSoon title="Pedidos masivos" description="Carga de varios pedidos a la vez; se activará cuando cada fila tenga reserva de saldo e idempotencia propias." />;
+export const dynamic = "force-dynamic";
+
+export default function BulkOrdersPage() {
+  return (
+    <>
+      <PageHeader title="Pedidos masivos" description="Crea hasta 100 pedidos de una vez." action={<Link className="btn" href="/services">Ver IDs de servicios</Link>} />
+      <BulkOrderForm enabled={smmLiveOrdersEnabled()} />
+    </>
+  );
 }

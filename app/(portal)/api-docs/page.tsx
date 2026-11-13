@@ -33,6 +33,22 @@ const endpoints: [string, string][] = [
   ["GET /api/v1/transactions", "Movimientos de saldo"],
 ];
 
+const v2Example = `POST /api/v2
+Content-Type: application/x-www-form-urlencoded
+
+key=gr_xxxxxxxxxxxx_...&action=add&service=1234&link=https://instagram.com/p/abc&quantity=1000
+
+→ { "order": "ORD-1A2B3C4D5E6F" }`;
+
+const v2Actions: [string, string][] = [
+  ["services", "Lista de servicios con tu precio"],
+  ["add", "service, link, quantity (+ runs, interval)"],
+  ["status", "order=ID u orders=ID1,ID2 (máx. 100)"],
+  ["balance", "Saldo disponible"],
+  ["refill", "order=ID"],
+  ["cancel", "orders=ID1,ID2"],
+];
+
 export default function ApiDocsPage() {
   return (
     <>
@@ -53,6 +69,17 @@ export default function ApiDocsPage() {
           <pre className="code">{responseExample}</pre>
         </section>
       </div>
+      <section className="card" style={{ marginTop: 18 }}>
+        <h3>API para revendedores (formato estándar v2)</h3>
+        <p className="muted">
+          Compatible con los paneles del mercado: añade este panel como proveedor con la URL <code>/api/v2</code> y una clave creada en
+          «Mi cuenta». Los errores llegan como <code>{"{ \"error\": \"...\" }"}</code>.
+        </p>
+        <div className="grid two">
+          <div className="list">{v2Actions.map(([action, text]) => <div className="list-item" key={action}><code>action={action}</code><span className="muted">{text}</span></div>)}</div>
+          <pre className="code">{v2Example}</pre>
+        </div>
+      </section>
     </>
   );
 }

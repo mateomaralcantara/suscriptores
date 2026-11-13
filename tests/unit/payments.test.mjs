@@ -62,3 +62,50 @@ test("isCronAuthorized requires the exact bearer secret", async () => {
   assert.equal(isCronAuthorized("Bearer short", "short"), false, "secrets under 16 chars are refused");
   assert.equal(isCronAuthorized("Bearer ", undefined), false);
 });
+
+test("parseBulkOrders accepts | ; tab and comma separators", async () => {
+  const { parseBulkOrders } = await import("../../lib/bulk-orders.ts");
+  const { rows, errors } = parseBulkOrders("# comentario\n123 | https://a.com/p | 100\n456;https://b.com;200\n789\thttps://c.com\t300\n10, https://d.com/x?a=1, 50\n\n");
+  assert.deepEqual(errors, []);
+  assert.deepEqual(rows.map((r) => [r.line, r.serviceId, r.link, r.quantity]), [
+    [2, "123", "https://a.com/p", 100], [3, "456", "https://b.com", 200], [4, "789", "https://c.com", 300], [5, "10", "https://d.com/x?a=1", 50],
+  ]);
+});
+
+test("parseBulkOrders reports bad lines and the row limit", async () => {
+  const { parseBulkOrders } = await import("../../lib/bulk-orders.ts");
+  const { errors } = parseBulkOrders("abc | https://a.com | 10\n1 | https://a.com | -5\n1 | https://a.com");
+  assert.deepEqual(errors.map((e) => e.line), [1, 2, 3]);
+  const many = Array.from({ length: 101 }, () => "1 | https://a.com | 10").join("\n");
+  assert.ok(parseBulkOrders(many).errors.some((e) => e.line === 0));
+});
+
+test("drip-feed is validated and billed per run", async () => {
+  const { parseDripFeed, billableQuantity } = await import("../../lib/order-status.ts");
+  assert.equal(parseDripFeed(undefined, undefined), null);
+  assert.equal(parseDripFeed("", ""), null);
+  assert.deepEqual(parseDripFeed(5, 60), { runs: 5, interval: 60 });
+  assert.equal(typeof parseDripFeed(1, 60), "string", "1 run is not drip-feed");
+  assert.equal(typeof parseDripFeed(101, 60), "string");
+  assert.equal(typeof parseDripFeed(5, 0), "string");
+  assert.equal(typeof parseDripFeed(5, 1441), "string");
+  assert.equal(typeof parseDripFeed(2.5, 10), "string");
+  assert.equal(billableQuantity(500, { runs: 5, interval: 60 }), 2500);
+  assert.equal(billableQuantity(500, null), 500);
+});
+
+test("API keys: format, hashing and status mapping", async () => {
+  const { generateApiKey, parseApiKey, apiKeyMatches, hashApiKey, toApiV2Status } = await import("../../lib/api-keys.ts");
+  const { key, prefix, hash } = generateApiKey();
+  assert.match(key, /^gr_[a-f0-9]{12}_[A-Za-z0-9_-]{43}$/);
+  assert.equal(parseApiKey(key)?.prefix, prefix);
+  assert.equal(hash, hashApiKey(key));
+  assert.equal(apiKeyMatches(key, hash), true);
+  assert.equal(apiKeyMatches(key + "x", hash), false);
+  assert.equal(parseApiKey("gr_short_key"), null);
+  assert.notEqual(generateApiKey().key, key, "keys are random");
+  assert.equal(toApiV2Status("processing"), "In progress");
+  assert.equal(toApiV2Status("pending_provider"), "Pending");
+  assert.equal(toApiV2Status("failed"), "Canceled");
+  assert.equal(toApiV2Status("partial"), "Partial");
+});

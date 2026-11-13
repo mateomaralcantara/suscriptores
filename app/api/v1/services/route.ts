@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/supabase-server";
-import { applySmmMarkup, getSmmServices, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
+import { applySmmMarkup, getSmmServicesCached, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 import { iconForPlatform, inferPlatform } from "@/lib/order-services";
 import { errorMessage } from "@/lib/api";
 
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ success: false, error: "No autorizado." }, { status: 401 });
 
   try {
-    const providerServices = await getSmmServices();
+    const providerServices = await getSmmServicesCached();
     const services = providerServices
       .map((service) => {
         const providerRate = Number(service.rate);
@@ -29,6 +29,7 @@ export async function GET(request: Request) {
           max: Number.isFinite(max) ? max : 0,
           refill: Boolean(service.refill),
           cancel: Boolean(service.cancel),
+          dripfeed: Boolean(service.dripfeed),
         };
       })
       .filter((service) => service.id && service.max >= service.min && service.max > 0);

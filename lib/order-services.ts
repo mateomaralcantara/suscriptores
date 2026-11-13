@@ -11,6 +11,7 @@ export type OrderService = {
   max: number;
   refill: boolean;
   cancel: boolean;
+  dripfeed?: boolean;
 };
 
 export const orderPlatforms = [

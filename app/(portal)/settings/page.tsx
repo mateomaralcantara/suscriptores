@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { ApiKeysCard } from "@/components/ApiKeysCard";
 import { PageHeader } from "@/components/PageHeader";
+import { appUrl } from "@/lib/stripe";
 import { getSessionProfile, isAdminUser } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +28,9 @@ export default async function SettingsPage() {
           <Link className="btn" href="/forgot-password">Cambiar contraseña</Link>
           <p className="muted" style={{ marginTop: 16 }}>¿Necesitas cambiar tu correo o cerrar la cuenta? <Link href="/tickets/new">Abre un ticket</Link>.</p>
         </section>
+      </div>
+      <div style={{ marginTop: 18 }}>
+        <ApiKeysCard apiUrl={`${appUrl()}/api/v2`} />
       </div>
     </>
   );

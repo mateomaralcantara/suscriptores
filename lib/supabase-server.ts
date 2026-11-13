@@ -20,6 +20,7 @@ export type AuthSession = {
 
 export type ProfileRow = {
   id: string;
+  tenant_id?: string | null;
   auth_user_id: string;
   email: string;
   full_name: string;
@@ -310,4 +311,23 @@ export async function getSessionProfile() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   return { user, profile: await ensureProfileForUser(user) };
+}
+
+export type ApiKeyRow = { id: string; user_id: string; name: string; key_prefix: string; secret_hash: string; status: string; last_used_at: string | null; created_at: string };
+
+export function listApiKeys(profileId: string) {
+  return serviceRoleRest<Omit<ApiKeyRow, "secret_hash">[]>(
+    `api_keys?user_id=eq.${encodeURIComponent(profileId)}&status=eq.active&select=id,user_id,name,key_prefix,status,last_used_at,created_at&order=created_at.desc`,
+  );
+}
+
+/** Resolves an active API key (by prefix + constant-time hash check) to its owner's profile. */
+export async function findProfileByApiKey(prefix: string, verify: (hash: string) => boolean) {
+  const rows = await serviceRoleRest<ApiKeyRow[]>(`api_keys?key_prefix=eq.${encodeURIComponent(prefix)}&status=eq.active&select=*&limit=1`);
+  const row = rows[0];
+  if (!row || !verify(row.secret_hash)) return null;
+  const profiles = await serviceRoleRest<ProfileRow[]>(`profiles?id=eq.${encodeURIComponent(row.user_id)}&status=eq.active&select=*&limit=1`);
+  if (!profiles[0]) return null;
+  void serviceRoleRest(`api_keys?id=eq.${row.id}`, { method: "PATCH", body: JSON.stringify({ last_used_at: new Date().toISOString() }) }).catch(() => undefined);
+  return profiles[0];
 }

@@ -24,6 +24,7 @@ create or replace function auth.uid() returns uuid language sql stable as $f$ se
 \i database/migrations/003_order_settlement.sql
 \i database/migrations/004_payments_admin_support.sql
 \i database/migrations/004_payments_admin_support.sql
+\i database/migrations/005_api_keys.sql
 SQL
 for file in tests/db/*.test.sql; do
   echo "== $file"
