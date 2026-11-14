@@ -221,3 +221,4 @@ textarea { min-height: 120px; resize: vertical; }
   .stat-tile .muted { font-size: 12px; }
   .platform-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+.field-error { color: #ff8a96; font-weight: 700; }

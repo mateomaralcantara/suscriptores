@@ -27,7 +27,8 @@ export function NewOrderPanel() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState(ALL_CATEGORIES);
   const [serviceId, setServiceId] = useState("");
-  const [quantity, setQuantity] = useState(0);
+  // Raw text so the customer can type freely; null means "use the service minimum".
+  const [quantityText, setQuantityText] = useState<string | null>(null);
   const [link, setLink] = useState("");
   const [dripFeed, setDripFeed] = useState(false);
   const [runs, setRuns] = useState(2);
@@ -76,14 +77,22 @@ export function NewOrderPanel() {
   );
 
   const selected = filtered.find((service) => service.id === serviceId) ?? filtered[0] ?? null;
-  const qty = selected && quantity >= selected.min ? quantity : selected?.min ?? 0;
+  const quantityValue = quantityText ?? String(selected?.min ?? "");
+  const qty = Number(quantityValue);
+  const quantityError = !selected
+    ? ""
+    : !Number.isInteger(qty) || quantityValue.trim() === ""
+      ? "Escribe una cantidad entera."
+      : qty < selected.min || qty > selected.max
+        ? `Debe estar entre ${selected.min.toLocaleString()} y ${selected.max.toLocaleString()}.`
+        : "";
   const useDripFeed = Boolean(selected?.dripfeed && dripFeed);
   const totalUnits = useDripFeed ? qty * runs : qty;
-  const charge = selected ? (totalUnits / 1000) * selected.rate : 0;
+  const charge = selected && !quantityError ? (totalUnits / 1000) * selected.rate : 0;
 
   function resetFor(next: OrderService | undefined) {
     setServiceId(next?.id ?? "");
-    setQuantity(next?.min ?? 0);
+    setQuantityText(null);
     setDripFeed(false);
     setMessage("");
     setError("");
@@ -107,8 +116,8 @@ export function NewOrderPanel() {
       setError("Los pedidos reales aún no están habilitados en el servidor.");
       return;
     }
-    if (qty < selected.min || qty > selected.max) {
-      setError(`La cantidad debe estar entre ${selected.min.toLocaleString()} y ${selected.max.toLocaleString()}.`);
+    if (quantityError) {
+      setError(`Cantidad: ${quantityError}`);
       return;
     }
     setSubmitting(true);
@@ -206,8 +215,20 @@ export function NewOrderPanel() {
 
           <div className="field">
             <label htmlFor="quantity">Cantidad</label>
-            <input id="quantity" max={selected.max} min={selected.min} onChange={(event) => setQuantity(Number(event.target.value))} required type="number" value={qty} />
+            <input
+              aria-invalid={Boolean(quantityError)}
+              id="quantity"
+              inputMode="numeric"
+              max={selected.max}
+              min={selected.min}
+              onChange={(event) => setQuantityText(event.target.value)}
+              required
+              step={1}
+              type="number"
+              value={quantityValue}
+            />
             <small>Mínimo: {selected.min.toLocaleString()} · Máximo: {selected.max.toLocaleString()}</small>
+            {quantityError ? <small className="field-error">{quantityError}</small> : null}
           </div>
 
           {selected.dripfeed ? (
@@ -241,7 +262,7 @@ export function NewOrderPanel() {
             <input className="charge-input" readOnly value={`US$${charge.toFixed(4)}`} />
           </div>
 
-          <button className="btn primary submit-order" disabled={submitting || !ordersEnabled} type="submit">
+          <button className="btn primary submit-order" disabled={submitting || !ordersEnabled || Boolean(quantityError)} type="submit">
             {submitting ? "Procesando..." : ordersEnabled ? "Realizar pedido" : "Pedidos deshabilitados"}
           </button>
         </>
