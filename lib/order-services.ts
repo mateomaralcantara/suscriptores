@@ -12,6 +12,7 @@ export type OrderService = {
   refill: boolean;
   cancel: boolean;
   dripfeed?: boolean;
+  averageMinutes?: number | null;
 };
 
 export const orderPlatforms = [

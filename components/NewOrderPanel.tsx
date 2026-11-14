@@ -3,7 +3,19 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OrderService } from "@/lib/order-services";
-import { orderPlatforms } from "@/lib/order-services";
+import { iconForPlatform, orderPlatforms } from "@/lib/order-services";
+import { formatDuration } from "@/lib/order-status";
+
+const PLATFORM_LABELS: Record<string, string> = {
+  All: "Todo",
+  Twitter: "X",
+  Traffic: "Tráfico",
+  Other: "Otro",
+};
+const label = (platform: string) => PLATFORM_LABELS[platform] ?? platform;
+const ALL_CATEGORIES = "__all__";
+
+const newKey = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `order-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
 export function NewOrderPanel() {
   const router = useRouter();
@@ -13,6 +25,7 @@ export function NewOrderPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [platform, setPlatform] = useState("All");
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState(ALL_CATEGORIES);
   const [serviceId, setServiceId] = useState("");
   const [quantity, setQuantity] = useState(0);
   const [link, setLink] = useState("");
@@ -26,62 +39,65 @@ export function NewOrderPanel() {
     let active = true;
     fetch("/api/v1/services", { cache: "no-store" })
       .then(async (response) => {
-        const result = await response.json() as {
-          success?: boolean;
-          services?: OrderService[];
-          ordersEnabled?: boolean;
-          error?: string;
-        };
+        const result = (await response.json()) as { success?: boolean; services?: OrderService[]; ordersEnabled?: boolean; error?: string };
         if (!response.ok || !result.success) throw new Error(result.error || "No fue posible cargar los servicios.");
         if (!active) return;
-        const list = result.services ?? [];
-        setServices(list);
+        setServices(result.services ?? []);
         setOrdersEnabled(Boolean(result.ordersEnabled));
-        if (list[0]) {
-          setServiceId(list[0].id);
-          setQuantity(list[0].min);
-        }
       })
       .catch((err) => {
         if (active) setError(err instanceof Error ? err.message : "No fue posible cargar los servicios.");
       })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const filteredServices = useMemo(() => {
+  // Only show platform buttons that actually have services.
+  const platforms = useMemo(() => orderPlatforms.filter((item) => item === "All" || services.some((service) => service.platform === item)), [services]);
+
+  const searched = useMemo(() => {
     const term = search.trim().toLowerCase();
     return services.filter((service) => {
       const matchesPlatform = platform === "All" || service.platform === platform;
-      const matchesSearch = !term || `${service.id} ${service.name} ${service.description} ${service.category}`.toLowerCase().includes(term);
+      const matchesSearch = !term || `${service.id} ${service.name} ${service.category}`.toLowerCase().includes(term);
       return matchesPlatform && matchesSearch;
     });
   }, [services, platform, search]);
 
-  const selected = services.find((service) => service.id === serviceId) ?? filteredServices[0] ?? null;
-  const useDripFeed = Boolean(selected?.dripfeed && dripFeed);
-  const totalUnits = useDripFeed ? quantity * runs : quantity;
-  const charge = selected ? Math.max(0, (totalUnits / 1000) * selected.rate) : 0;
+  const categories = useMemo(() => Array.from(new Set(searched.map((service) => service.category))), [searched]);
+  const activeCategory = category !== ALL_CATEGORIES && categories.includes(category) ? category : ALL_CATEGORIES;
+  const filtered = useMemo(
+    () => (activeCategory === ALL_CATEGORIES ? searched : searched.filter((service) => service.category === activeCategory)),
+    [searched, activeCategory],
+  );
 
-  function selectPlatform(nextPlatform: string) {
-    setPlatform(nextPlatform);
-    const first = services.find((service) => nextPlatform === "All" || service.platform === nextPlatform);
-    if (first) {
-      setServiceId(first.id);
-      setQuantity(first.min);
-    }
+  const selected = filtered.find((service) => service.id === serviceId) ?? filtered[0] ?? null;
+  const qty = selected && quantity >= selected.min ? quantity : selected?.min ?? 0;
+  const useDripFeed = Boolean(selected?.dripfeed && dripFeed);
+  const totalUnits = useDripFeed ? qty * runs : qty;
+  const charge = selected ? (totalUnits / 1000) * selected.rate : 0;
+
+  function resetFor(next: OrderService | undefined) {
+    setServiceId(next?.id ?? "");
+    setQuantity(next?.min ?? 0);
+    setDripFeed(false);
     setMessage("");
     setError("");
   }
 
-  function selectService(nextId: string) {
-    const next = services.find((service) => service.id === nextId);
-    if (!next) return;
-    setServiceId(next.id);
-    setQuantity(next.min);
-    setDripFeed(false);
-    setMessage("");
-    setError("");
+  function choosePlatform(next: string) {
+    setPlatform(next);
+    setCategory(ALL_CATEGORIES);
+    resetFor(services.find((service) => next === "All" || service.platform === next));
+  }
+
+  function chooseCategory(next: string) {
+    setCategory(next);
+    resetFor(searched.find((service) => next === ALL_CATEGORIES || service.category === next));
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -91,29 +107,20 @@ export function NewOrderPanel() {
       setError("Los pedidos reales aún no están habilitados en el servidor.");
       return;
     }
-    if (quantity < selected.min || quantity > selected.max) {
+    if (qty < selected.min || qty > selected.max) {
       setError(`La cantidad debe estar entre ${selected.min.toLocaleString()} y ${selected.max.toLocaleString()}.`);
       return;
     }
-
     setSubmitting(true);
     setMessage("");
     setError("");
     try {
-      const idempotencyKey = typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `order-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const response = await fetch("/api/v1/orders", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ serviceId: selected.id, link, quantity, idempotencyKey, ...(useDripFeed ? { runs, interval } : {}) }),
+        body: JSON.stringify({ serviceId: selected.id, link, quantity: qty, idempotencyKey: newKey(), ...(useDripFeed ? { runs, interval } : {}) }),
       });
-      const result = await response.json() as {
-        success?: boolean;
-        error?: string;
-        order?: { publicId?: string };
-        orderId?: string;
-      };
+      const result = (await response.json()) as { success?: boolean; error?: string; order?: { publicId?: string } };
       if (!response.ok || !result.success) throw new Error(result.error || "No fue posible crear el pedido.");
       const publicId = result.order?.publicId;
       setMessage(publicId ? `Pedido ${publicId} creado correctamente.` : "Pedido creado correctamente.");
@@ -128,73 +135,83 @@ export function NewOrderPanel() {
     }
   }
 
-  if (loading) return <div className="card">Cargando catálogo del proveedor...</div>;
-  if (!selected) return <div className="card"><strong>No hay servicios disponibles.</strong>{error ? <div className="notice">{error}</div> : null}</div>;
+  if (loading) return <div className="card order-card">Cargando servicios...</div>;
+  if (services.length === 0) {
+    return (
+      <div className="card order-card">
+        <strong>No hay servicios disponibles.</strong>
+        {error ? <div className="notice" style={{ marginTop: 12 }}>{error}</div> : null}
+      </div>
+    );
+  }
 
   return (
-    <div className="order-workspace">
-      <section className="platform-tabs" aria-label="Filtrar por plataforma">
-        {orderPlatforms.map((item) => (
-          <button className={platform === item ? "platform-tab active" : "platform-tab"} key={item} onClick={() => selectPlatform(item)} type="button">
-            {item}
+    <form className="card order-card" onSubmit={submit}>
+      <div className="platform-grid" role="group" aria-label="Plataforma">
+        {platforms.map((item) => (
+          <button className={platform === item ? "platform-btn active" : "platform-btn"} key={item} onClick={() => choosePlatform(item)} type="button">
+            <span aria-hidden="true">{item === "All" ? "☰" : iconForPlatform(item)}</span> {label(item)}
           </button>
         ))}
-      </section>
+      </div>
 
-      <form className="card order-card" onSubmit={submit}>
-        <div className="order-search-row">
-          <div className="field">
-            <label htmlFor="service-search">Buscar</label>
-            <input id="service-search" onChange={(event) => setSearch(event.target.value)} placeholder="ID, categoría o servicio" value={search} />
-          </div>
-          <div className="field">
-            <label htmlFor="platform">Plataforma</label>
-            <select id="platform" onChange={(event) => selectPlatform(event.target.value)} value={platform}>
-              {orderPlatforms.map((item) => <option key={item}>{item}</option>)}
-            </select>
-          </div>
-        </div>
+      <div className="field">
+        <label htmlFor="service-search">Buscar</label>
+        <input id="service-search" onChange={(event) => { setSearch(event.target.value); setCategory(ALL_CATEGORIES); }} placeholder="🔍  ID, nombre o categoría" value={search} />
+      </div>
 
-        <div className="field full">
-          <label htmlFor="service">Servicio</label>
-          <select id="service" onChange={(event) => selectService(event.target.value)} value={selected.id}>
-            {filteredServices.map((service) => (
+      <div className="field">
+        <label htmlFor="category">Categoría</label>
+        <select id="category" onChange={(event) => chooseCategory(event.target.value)} value={activeCategory}>
+          <option value={ALL_CATEGORIES}>Todas las categorías ({searched.length})</option>
+          {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+      </div>
+
+      <div className="field">
+        <label htmlFor="service">Servicio</label>
+        {selected ? (
+          <select id="service" onChange={(event) => resetFor(filtered.find((service) => service.id === event.target.value))} value={selected.id}>
+            {filtered.map((service) => (
               <option key={service.id} value={service.id}>
-                {service.icon} {service.id} - {service.name} - US${service.rate.toFixed(4)} / 1000
+                {service.id} — {service.name} — US${service.rate.toFixed(4)} / 1000
               </option>
             ))}
           </select>
-          <small className="result-count">{filteredServices.length} servicios disponibles</small>
-        </div>
+        ) : (
+          <div className="notice">Ningún servicio coincide con la búsqueda.</div>
+        )}
+      </div>
 
-        <div className="service-summary">
-          <div><span>ID</span><strong>{selected.id}</strong></div>
-          <div><span>Plataforma</span><strong>{selected.platform}</strong></div>
-          <div><span>Tarifa</span><strong>US${selected.rate.toFixed(4)} / 1000</strong></div>
-          <div><span>Refill / Cancelación</span><strong>{selected.refill ? "Refill" : "Sin refill"} · {selected.cancel ? "Cancelable" : "No cancelable"}</strong></div>
-        </div>
+      {selected ? (
+        <>
+          <div className="field">
+            <label>Descripción</label>
+            <div className="service-description">
+              <strong>{selected.name}</strong>
+              <div className="service-tags">
+                <span className="badge">{selected.category}</span>
+                <span className={selected.refill ? "badge active" : "badge"}>{selected.refill ? "♻️ Con refill" : "Sin refill"}</span>
+                <span className={selected.cancel ? "badge active" : "badge"}>{selected.cancel ? "Cancelable" : "No cancelable"}</span>
+                {selected.dripfeed ? <span className="badge active">Drip-feed</span> : null}
+                <span className="badge">US${selected.rate.toFixed(4)} / 1000</span>
+              </div>
+            </div>
+          </div>
 
-        <div className="field full">
-          <label>Descripción</label>
-          <div className="service-description">{selected.description}</div>
-        </div>
-
-        <div className="form-grid">
-          <div className="field full">
-            <label htmlFor="link">URL objetivo</label>
+          <div className="field">
+            <label htmlFor="link">Enlace</label>
             <input id="link" onChange={(event) => setLink(event.target.value)} placeholder="https://..." required type="url" value={link} />
           </div>
+
           <div className="field">
             <label htmlFor="quantity">Cantidad</label>
-            <input id="quantity" max={selected.max} min={selected.min} onChange={(event) => setQuantity(Number(event.target.value))} required type="number" value={quantity} />
-            <small>Min: {selected.min.toLocaleString()} · Max: {selected.max.toLocaleString()}</small>
+            <input id="quantity" max={selected.max} min={selected.min} onChange={(event) => setQuantity(Number(event.target.value))} required type="number" value={qty} />
+            <small>Mínimo: {selected.min.toLocaleString()} · Máximo: {selected.max.toLocaleString()}</small>
           </div>
-          <div className="field">
-            <label>Categoría</label>
-            <input readOnly value={selected.category} />
-          </div>
+
           {selected.dripfeed ? (
-            <div className="field full">
+            <div className="field">
               <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <input checked={dripFeed} onChange={(event) => setDripFeed(event.target.checked)} type="checkbox" /> Drip-feed (entregar en varias tandas)
               </label>
@@ -208,28 +225,31 @@ export function NewOrderPanel() {
                     <label htmlFor="interval">Minutos entre tandas</label>
                     <input id="interval" max={1440} min={1} onChange={(event) => setIntervalMinutes(Number(event.target.value))} type="number" value={interval} />
                   </div>
-                  <small className="field full">Se entregan {quantity.toLocaleString()} en cada tanda: {totalUnits.toLocaleString()} en total.</small>
+                  <small className="field full">Se entregan {qty.toLocaleString()} en cada tanda: {totalUnits.toLocaleString()} en total.</small>
                 </div>
               ) : null}
             </div>
           ) : null}
-          <div className="field full charge-field">
-            <label>Cargo estimado</label>
-            <div className="charge-value">US${charge.toFixed(4)}</div>
+
+          <div className="field">
+            <label title="Tiempo medio de los últimos 10 pedidos completados de este servicio">Tiempo promedio ⓘ</label>
+            <input readOnly value={formatDuration(selected.averageMinutes)} />
           </div>
-        </div>
 
-        <div className="order-actions">
+          <div className="field">
+            <label>Cargo</label>
+            <input className="charge-input" readOnly value={`US$${charge.toFixed(4)}`} />
+          </div>
+
           <button className="btn primary submit-order" disabled={submitting || !ordersEnabled} type="submit">
-            {submitting ? "Procesando..." : ordersEnabled ? "Crear pedido" : "Pedidos deshabilitados"}
+            {submitting ? "Procesando..." : ordersEnabled ? "Realizar pedido" : "Pedidos deshabilitados"}
           </button>
-          <button className="btn" onClick={() => { setMessage(""); setError(""); }} type="button">Limpiar aviso</button>
-        </div>
+        </>
+      ) : null}
 
-        {!ordersEnabled ? <div className="notice">El catálogo es real, pero el servidor mantiene los pedidos bloqueados hasta configurar Supabase y activar SMM_LIVE_ORDERS_ENABLED=true.</div> : null}
-        {message ? <div className="toast">{message}</div> : null}
-        {error ? <div className="notice">{error}</div> : null}
-      </form>
-    </div>
+      {!ordersEnabled ? <div className="notice">El catálogo es real, pero los pedidos están bloqueados hasta activar SMM_LIVE_ORDERS_ENABLED=true.</div> : null}
+      {message ? <div className="toast">{message}</div> : null}
+      {error ? <div className="notice">{error}</div> : null}
+    </form>
   );
 }

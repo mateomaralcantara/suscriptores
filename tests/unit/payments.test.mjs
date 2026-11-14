@@ -123,3 +123,14 @@ test("public service IDs never collide across providers and round-trip", async (
   assert.equal(fromPublicServiceId("-1"), null);
   assert.equal(fromPublicServiceId("1.5"), null);
 });
+
+test("formatDuration renders average delivery times in Spanish", async () => {
+  const { formatDuration } = await import("../../lib/order-status.ts");
+  assert.equal(formatDuration(237), "3 horas 57 minutos");
+  assert.equal(formatDuration(60), "1 hora");
+  assert.equal(formatDuration(1), "1 minuto");
+  assert.equal(formatDuration(0.2), "1 minuto", "never shows 0");
+  assert.equal(formatDuration(1500), "1 día 1 hora");
+  assert.equal(formatDuration(null), "Sin datos todavía");
+  assert.equal(formatDuration(-5), "Sin datos todavía");
+});

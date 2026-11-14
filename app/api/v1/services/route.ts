@@ -2,13 +2,20 @@ import { NextResponse } from "next/server";
 import { getUserFromRequest } from "@/lib/supabase-server";
 import { getCatalog, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 import { iconForPlatform, inferPlatform } from "@/lib/order-services";
+import { getAverageCompletionMinutes } from "@/lib/service-stats";
 
 export async function GET(request: Request) {
   const user = await getUserFromRequest(request);
   if (!user) return NextResponse.json({ success: false, error: "No autorizado." }, { status: 401 });
 
   try {
-    const { data } = await getCatalog();
+    const [{ data }, averages] = await Promise.all([
+      getCatalog(),
+      getAverageCompletionMinutes().catch((error) => {
+        console.error("[v1/services] average times", error);
+        return {} as Record<string, number>;
+      }),
+    ]);
     // The provider behind each service is internal: customers only see the public ID and sale price.
     const services = data.map((service) => {
       const platform = inferPlatform(`${service.category} ${service.name}`);
@@ -26,6 +33,7 @@ export async function GET(request: Request) {
         refill: service.refill,
         cancel: service.cancel,
         dripfeed: service.dripfeed,
+        averageMinutes: averages[service.id] ?? null,
       };
     });
 

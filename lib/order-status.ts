@@ -134,3 +134,17 @@ export function fromPublicServiceId(publicId: string | number): { offset: number
   const offset = Math.floor(id / PROVIDER_ID_BLOCK) * PROVIDER_ID_BLOCK;
   return { offset, providerServiceId: String(id - offset) };
 }
+
+/** "3 horas 57 minutos" style duration for average delivery times. */
+export function formatDuration(minutes: number | null | undefined) {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes) || minutes < 0) return "Sin datos todavía";
+  const total = Math.max(1, Math.round(minutes));
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const mins = total % 60;
+  const parts: string[] = [];
+  if (days) parts.push(`${days} ${days === 1 ? "día" : "días"}`);
+  if (hours) parts.push(`${hours} ${hours === 1 ? "hora" : "horas"}`);
+  if (mins && days === 0) parts.push(`${mins} ${mins === 1 ? "minuto" : "minutos"}`);
+  return parts.join(" ");
+}

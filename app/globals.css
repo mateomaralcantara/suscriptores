@@ -193,3 +193,31 @@ textarea { min-height: 120px; resize: vertical; }
   .order-actions { flex-direction: column; }
   .submit-order { width: 100%; min-width: 0; }
 }
+
+/* New order page: summary tiles + single-column order form */
+.stat-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 22px; }
+.stat-tile { display: flex; align-items: center; gap: 14px; padding: 16px 18px; }
+.stat-tile strong { display: block; font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }
+.stat-tile .muted { display: block; font-size: 13px; margin-top: 2px; }
+.stat-icon { flex: 0 0 54px; height: 54px; display: grid; place-items: center; border-radius: 14px; font-size: 22px; color: white; background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
+.stat-link { display: inline-block; margin-top: 4px; font-size: 11px; font-weight: 800; letter-spacing: .06em; color: var(--primary); }
+.order-layout { max-width: 760px; margin: 0 auto; }
+.order-card { display: grid; gap: 16px; }
+.platform-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.platform-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--text); font-weight: 700; font-size: 13px; }
+.platform-btn:hover { border-color: var(--primary); }
+.platform-btn.active { color: white; border-color: transparent; background: linear-gradient(135deg, var(--primary), var(--primary-2)); }
+.service-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.charge-input { font-weight: 900; font-size: 18px; color: #2fd08f; }
+.order-card .submit-order { width: 100%; padding: 14px; font-size: 15px; }
+@media (max-width: 900px) {
+  .stat-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .stat-tiles { gap: 10px; }
+  .stat-tile { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; }
+  .stat-icon { flex-basis: auto; width: 36px; height: 36px; font-size: 16px; border-radius: 10px; }
+  .stat-tile strong { font-size: 16px; }
+  .stat-tile .muted { font-size: 12px; }
+  .platform-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

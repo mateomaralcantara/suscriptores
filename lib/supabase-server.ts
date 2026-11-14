@@ -331,3 +331,16 @@ export async function findProfileByApiKey(prefix: string, verify: (hash: string)
   void serviceRoleRest(`api_keys?id=eq.${row.id}`, { method: "PATCH", body: JSON.stringify({ last_used_at: new Date().toISOString() }) }).catch(() => undefined);
   return profiles[0];
 }
+
+/** Exact row count for a PostgREST filter (uses the Content-Range header, no rows transferred). */
+export async function countRows(table: string, filter: string) {
+  const { url, serviceRoleKey } = config();
+  if (!serviceRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY is missing.");
+  const response = await fetch(`${url}/rest/v1/${table}?select=id&${filter}&limit=1`, {
+    headers: { apikey: serviceRoleKey, authorization: `Bearer ${serviceRoleKey}`, Prefer: "count=exact" },
+    cache: "no-store",
+  });
+  if (!response.ok) await parseResponse(response);
+  const total = Number(response.headers.get("content-range")?.split("/")[1]);
+  return Number.isFinite(total) ? total : 0;
+}
