@@ -32,8 +32,17 @@ if ($vars.SMM_MARKUP_PERCENT -match '^\d+(\.\d+)?$') { $markup = [double]$vars.S
 $all = @()
 foreach ($p in $providers) {
   try {
-    $services = Invoke-RestMethod -Method Post -Uri $p.Url -Body @{ key = $p.Key; action = "services" } -TimeoutSec 60
-    if ($services.error) { Write-Host "$($p.Name): $($services.error)" -ForegroundColor Red; continue }
+    $response = Invoke-RestMethod -Method Post -Uri $p.Url -Body @{ key = $p.Key; action = "services" } -TimeoutSec 60
+    # A single object with "error" means the provider refused (e.g. invalid key); a list means services.
+    if ($response -isnot [array] -and $response.PSObject.Properties["error"]) {
+      Write-Host "$($p.Name): ERROR del proveedor -> $($response.error)" -ForegroundColor Red
+      continue
+    }
+    $services = @($response | Where-Object { $_.PSObject.Properties["service"] })
+    if ($services.Count -eq 0) {
+      Write-Host "$($p.Name): respuesta inesperada (no es una lista de servicios). Revisa la URL de la API." -ForegroundColor Red
+      continue
+    }
     $found = $services | Where-Object { "$($_.name) $($_.category)" -match $Buscar }
     Write-Host "$($p.Name): $($services.Count) servicios, $($found.Count) coinciden con '$Buscar'" -ForegroundColor Green
     $all += $found | ForEach-Object {
