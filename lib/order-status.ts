@@ -162,3 +162,8 @@ export function priceForBuyer(providerRate: number, markupPercent: number, buyer
   const discount = Number.isFinite(buyer.discountPercent) ? Math.min(Math.max(buyer.discountPercent, 0), 100) : 0;
   return Math.max(providerRate, list * (1 - discount / 100));
 }
+
+/** Cheapest first; ties by numeric service ID so the order is stable. */
+export function byPriceAsc<T extends { rate: number; id: string | number }>(a: T, b: T) {
+  return a.rate - b.rate || Number(a.id) - Number(b.id);
+}

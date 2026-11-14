@@ -49,12 +49,15 @@ async function handle(profile: ProfileRow, params: Record<string, string>) {
       const { data } = await getCatalog();
       const buyer = buyerFromProfile(profile);
       const markups = Object.fromEntries(getSmmProviders().map((provider) => [provider.key, provider.markupPercent]));
-      return reply(data.map((service) => ({
+      const priced = data
+        .map((service) => ({ service, rate: priceForBuyer(service.providerRate, markups[service.providerKey] ?? 0, buyer) }))
+        .sort((a, b) => a.rate - b.rate || Number(a.service.id) - Number(b.service.id));
+      return reply(priced.map(({ service, rate }) => ({
         service: service.id,
         name: service.name,
         type: service.type,
         category: service.category,
-        rate: priceForBuyer(service.providerRate, markups[service.providerKey] ?? 0, buyer).toFixed(4),
+        rate: rate.toFixed(4),
         min: String(service.min),
         max: String(service.max),
         refill: service.refill,

@@ -147,3 +147,9 @@ test("priceForBuyer: admins pay cost, discounts never go below cost", async () =
   assert.equal(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: Number.NaN }), 13);
   assert.equal(priceForBuyer(-1, 30, { isAdmin: false, discountPercent: 0 }), 0);
 });
+
+test("byPriceAsc sorts cheapest first with a stable tie-break", async () => {
+  const { byPriceAsc } = await import("../../lib/order-status.ts");
+  const list = [{ id: "30", rate: 2 }, { id: "10004893", rate: 25 }, { id: "12", rate: 0.04 }, { id: "5", rate: 2 }];
+  assert.deepEqual(list.sort(byPriceAsc).map((s) => s.id), ["12", "5", "30", "10004893"]);
+});

@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OrderService } from "@/lib/order-services";
 import { iconForPlatform, orderPlatforms } from "@/lib/order-services";
-import { formatDuration } from "@/lib/order-status";
+import { byPriceAsc, formatDuration } from "@/lib/order-status";
 
 const PLATFORM_LABELS: Record<string, string> = {
   All: "Todo",
@@ -44,7 +44,7 @@ export function NewOrderPanel() {
         const result = (await response.json()) as { success?: boolean; services?: OrderService[]; ordersEnabled?: boolean; error?: string; pricing?: string; discountPercent?: number };
         if (!response.ok || !result.success) throw new Error(result.error || "No fue posible cargar los servicios.");
         if (!active) return;
-        setServices(result.services ?? []);
+        setServices([...(result.services ?? [])].sort(byPriceAsc));
         setOrdersEnabled(Boolean(result.ordersEnabled));
         setPricing({ kind: result.pricing ?? "list", discount: result.discountPercent ?? 0 });
       })
@@ -71,7 +71,13 @@ export function NewOrderPanel() {
     });
   }, [services, platform, search]);
 
+  // Services arrive cheapest-first, so first appearance = cheapest service of each category.
   const categories = useMemo(() => Array.from(new Set(searched.map((service) => service.category))), [searched]);
+  const cheapestByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const service of searched) if (!map.has(service.category)) map.set(service.category, service.rate);
+    return map;
+  }, [searched]);
   const activeCategory = category !== ALL_CATEGORIES && categories.includes(category) ? category : ALL_CATEGORIES;
   const filtered = useMemo(
     () => (activeCategory === ALL_CATEGORIES ? searched : searched.filter((service) => service.category === activeCategory)),
@@ -175,7 +181,11 @@ export function NewOrderPanel() {
         <label htmlFor="category">Categoría</label>
         <select id="category" onChange={(event) => chooseCategory(event.target.value)} value={activeCategory}>
           <option value={ALL_CATEGORIES}>Todas las categorías ({searched.length})</option>
-          {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+          {categories.map((item) => (
+            <option key={item} value={item}>
+              {item} — desde US${(cheapestByCategory.get(item) ?? 0).toFixed(4)}
+            </option>
+          ))}
         </select>
       </div>
 

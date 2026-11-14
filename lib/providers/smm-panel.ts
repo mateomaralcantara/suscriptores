@@ -255,6 +255,7 @@ export async function getCatalog(maxAgeMs = 60_000) {
     }
   });
   if (data.length === 0 && failed.length > 0) throw new SmmPanelError(`Ningún proveedor respondió (${failed.join(", ")}).`);
+  data.sort((a, b) => a.providerRate - b.providerRate || Number(a.id) - Number(b.id));
   catalogCache = { at: Date.now(), signature, data, failed };
   return catalogCache;
 }

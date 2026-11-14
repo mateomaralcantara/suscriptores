@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { buyerFromProfile, ensureAdminProfile, getUserFromRequest } from "@/lib/supabase-server";
-import { priceForBuyer } from "@/lib/order-status";
+import { byPriceAsc, priceForBuyer } from "@/lib/order-status";
 import { getCatalog, getSmmProviders, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 import { iconForPlatform, inferPlatform } from "@/lib/order-services";
 import { getAverageCompletionMinutes } from "@/lib/service-stats";
@@ -21,7 +21,8 @@ export async function GET(request: Request) {
     const buyer = buyerFromProfile(profile);
     const markups = Object.fromEntries(getSmmProviders().map((provider) => [provider.key, provider.markupPercent]));
     // The provider behind each service is internal: customers only see the public ID and sale price.
-    const services = data.map((service) => {
+    const services = data
+      .map((service) => {
       const platform = inferPlatform(`${service.category} ${service.name}`);
       return {
         id: service.id,
@@ -39,7 +40,8 @@ export async function GET(request: Request) {
         dripfeed: service.dripfeed,
         averageMinutes: averages[service.id] ?? null,
       };
-    });
+      })
+      .sort(byPriceAsc);
 
     return NextResponse.json({
       success: true,

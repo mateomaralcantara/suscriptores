@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { SimpleTable } from "@/components/SimpleTable";
 import { getCatalog, getSmmProviders } from "@/lib/providers/smm-panel";
-import { priceForBuyer, type Buyer } from "@/lib/order-status";
+import { byPriceAsc, priceForBuyer, type Buyer } from "@/lib/order-status";
 import { buyerFromProfile, ensureAdminProfile, getSessionProfile } from "@/lib/supabase-server";
 import { inferPlatform } from "@/lib/order-services";
 
@@ -22,7 +22,7 @@ async function loadServices(buyer: Buyer) {
       max: service.max,
       refill: service.refill,
       cancel: service.cancel,
-    })) };
+    })).sort(byPriceAsc) };
   } catch (error) {
     console.error("[services] provider error", error);
     return { error: "No fue posible cargar el catálogo del proveedor. Inténtalo de nuevo en unos minutos." };
