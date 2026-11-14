@@ -6,7 +6,7 @@
  */
 import { apiKeyMatches, parseApiKey, toApiV2Status } from "@/lib/api-keys";
 import { createLiveOrder } from "@/lib/create-order";
-import { applySmmMarkup, cancelSmmOrders, getSmmServicesCached, requestSmmRefill } from "@/lib/providers/smm-panel";
+import { cancelProviderOrders, getCatalog, providerForOrder, requestProviderRefill } from "@/lib/providers/smm-panel";
 import { canCancelOrder, canRefillOrder } from "@/lib/order-status";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { findProfileByApiKey, getOrderForProfile, getWalletForProfile, supabaseRpc, type OrderRow, type ProfileRow } from "@/lib/supabase-server";
@@ -46,22 +46,19 @@ function ids(value: string | undefined, max = 100) {
 async function handle(profile: ProfileRow, params: Record<string, string>) {
   switch (params.action) {
     case "services": {
-      const services = await getSmmServicesCached();
-      return reply(services.map((service) => {
-        const rate = Number(service.rate);
-        return {
-          service: String(service.service),
-          name: service.name,
-          type: service.type,
-          category: service.category,
-          rate: Number.isFinite(rate) ? applySmmMarkup(rate).toFixed(4) : "0",
-          min: String(service.min),
-          max: String(service.max),
-          refill: Boolean(service.refill),
-          cancel: Boolean(service.cancel),
-          dripfeed: Boolean(service.dripfeed),
-        };
-      }));
+      const { data } = await getCatalog();
+      return reply(data.map((service) => ({
+        service: service.id,
+        name: service.name,
+        type: service.type,
+        category: service.category,
+        rate: service.rate.toFixed(4),
+        min: String(service.min),
+        max: String(service.max),
+        refill: service.refill,
+        cancel: service.cancel,
+        dripfeed: service.dripfeed,
+      })));
     }
     case "add": {
       // Resellers rarely send an idempotency key; derive one so a retried request cannot double-charge.
@@ -90,19 +87,21 @@ async function handle(profile: ProfileRow, params: Record<string, string>) {
     case "refill": {
       const order = params.order ? await getOrderForProfile(profile.id, params.order) : null;
       if (!order) return error("Incorrect order ID");
-      if (!canRefillOrder(order)) return error("Refill not available for this order");
-      const provider = await requestSmmRefill(String(order.provider_order_id));
+      const orderProvider = providerForOrder(order);
+      if (!canRefillOrder(order) || !orderProvider) return error("Refill not available for this order");
+      const provider = await requestProviderRefill(orderProvider, String(order.provider_order_id));
       return reply({ refill: String((provider as { refill?: unknown }).refill ?? order.public_id) });
     }
     case "cancel": {
       const out = [];
       for (const id of ids(params.orders ?? params.order)) {
         const order = await getOrderForProfile(profile.id, id);
-        if (!order || !canCancelOrder(order)) {
+        const orderProvider = order ? providerForOrder(order) : null;
+        if (!order || !orderProvider || !canCancelOrder(order)) {
           out.push({ order: id, cancel: { error: order ? "Order cannot be canceled" : "Incorrect order ID" } });
           continue;
         }
-        await cancelSmmOrders(String(order.provider_order_id));
+        await cancelProviderOrders(orderProvider, String(order.provider_order_id));
         await supabaseRpc("request_order_cancel", { p_order_id: order.id, p_payload: { source: "api_v2" } });
         out.push({ order: id, cancel: 1 });
       }

@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/PageHeader";
-import { getSmmMarkupPercent, isSmmConfigured, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
+import { getSmmMarkupPercent, getSmmProviders, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 import { isStripeConfigured } from "@/lib/stripe";
 import { isSupabaseConfigured, requireAdmin } from "@/lib/supabase-server";
 
@@ -9,7 +9,7 @@ export default async function AdminSettingsPage() {
   await requireAdmin();
   const items: [string, string, string][] = [
     ["Supabase", isSupabaseConfigured() ? "Configurado" : "Falta", "SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY"],
-    ["Proveedor SMM", isSmmConfigured() ? "Configurado" : "Falta", "SMM_PANEL_API_URL, SMM_PANEL_API_KEY"],
+    ["Proveedores SMM", getSmmProviders().map((p) => p.name).join(", ") || "Falta", "SMM_PANEL_API_URL/KEY (principal) y SMM_PROVIDER_2..5_NAME/API_URL/API_KEY"],
     ["Pedidos reales", smmLiveOrdersEnabled() ? "Activos" : "Bloqueados", "SMM_LIVE_ORDERS_ENABLED"],
     ["Margen", `${getSmmMarkupPercent()}%`, "SMM_MARKUP_PERCENT"],
     ["Pagos con tarjeta", isStripeConfigured() ? "Configurado" : "Falta", "STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET"],

@@ -109,3 +109,17 @@ test("API keys: format, hashing and status mapping", async () => {
   assert.equal(toApiV2Status("failed"), "Canceled");
   assert.equal(toApiV2Status("partial"), "Partial");
 });
+
+test("public service IDs never collide across providers and round-trip", async () => {
+  const { toPublicServiceId, fromPublicServiceId, PROVIDER_ID_BLOCK } = await import("../../lib/order-status.ts");
+  assert.equal(toPublicServiceId(0, 907), "907", "first provider keeps its IDs");
+  assert.equal(toPublicServiceId(PROVIDER_ID_BLOCK, 907), "10000907");
+  assert.notEqual(toPublicServiceId(0, 907), toPublicServiceId(PROVIDER_ID_BLOCK, 907));
+  assert.deepEqual(fromPublicServiceId("10000907"), { offset: PROVIDER_ID_BLOCK, providerServiceId: "907" });
+  assert.deepEqual(fromPublicServiceId(907), { offset: 0, providerServiceId: "907" });
+  assert.deepEqual(fromPublicServiceId("20000001"), { offset: 2 * PROVIDER_ID_BLOCK, providerServiceId: "1" });
+  assert.equal(toPublicServiceId(0, "abc"), null, "non-numeric provider IDs are skipped");
+  assert.equal(toPublicServiceId(0, PROVIDER_ID_BLOCK), null, "IDs that would overflow the block are skipped");
+  assert.equal(fromPublicServiceId("-1"), null);
+  assert.equal(fromPublicServiceId("1.5"), null);
+});

@@ -1,5 +1,5 @@
 import { json } from "@/lib/api";
-import { isSmmConfigured, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
+import { getSmmProviders, isSmmConfigured, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 import { isSupabaseConfigured } from "@/lib/supabase-server";
 
 export async function GET() {
@@ -10,6 +10,7 @@ export async function GET() {
     dependencies: {
       supabase: isSupabaseConfigured(),
       smmProvider: isSmmConfigured(),
+      smmProviders: getSmmProviders().length,
       liveOrders: smmLiveOrdersEnabled(),
     },
     timestamp: new Date().toISOString(),

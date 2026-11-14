@@ -34,7 +34,7 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
 - `app/api/auth/*` – login, registro, logout, recuperación (cookies httpOnly `gr_access_token` / `gr_refresh_token`).
 - `app/api/v1/*` – API autenticada: servicios, pedidos, cancelación, refill, saldo, transacciones.
 - `lib/supabase-server.ts` – cliente Supabase (auth + REST con service role), `isAdminUser`, `requireAdmin`.
-- `lib/providers/smm-panel.ts` – adaptador del proveedor (`SmmPanelError.ambiguous` = no se sabe si el pedido se creó).
+- `lib/providers/smm-panel.ts` – proveedores API v2 (hasta 5, ver `.env.example`), catálogo combinado `getCatalog()` y `providerForOrder()`. `SmmPanelError.ambiguous` = no se sabe si el pedido se creó.
 - `lib/order-status.ts` – reglas puras: estados, cancel/refill, reembolsos, margen y coste en centavos.
 - `lib/api.ts` – `json`, `readJsonObject`, `internalError` (registra el error y responde genérico).
 - `lib/stripe.ts` / `lib/stripe-signature.ts` – Checkout de recargas y verificación de firma del webhook.
@@ -64,6 +64,7 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
 - En PL/pgSQL con `returns table(...)`, califica las columnas (`orders.status`): los nombres de salida chocan con las columnas.
 - Admin = correo en `ADMIN_EMAILS` **y** confirmado (`isAdminUser`), nunca solo el correo.
 - `lib/order-status.ts` y `lib/order-services.ts` no usan alias ni imports de runtime: las pruebas los importan directamente.
+- Varios proveedores: el ID público de servicio es `offset + ID del proveedor` (`toPublicServiceId`); el proveedor 1 tiene offset 0. Cada pedido guarda `metadata.provider`; usa siempre `providerForOrder(order)` para estado, cancelación y refill.
 - Drip-feed: se cobra `quantity × runs` (`billableQuantity`). Nunca envíes al proveedor más de lo que se reservó.
 - No muestres datos de ejemplo: un módulo sin backend usa `ComingSoon`.
 - Textos visibles al usuario en español.

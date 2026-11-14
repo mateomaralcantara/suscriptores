@@ -115,3 +115,22 @@ export function parseDripFeed(runs: unknown, interval: unknown): DripFeed | stri
 export function billableQuantity(quantity: number, dripFeed: DripFeed) {
   return dripFeed ? quantity * dripFeed.runs : quantity;
 }
+
+/**
+ * Public service IDs across several providers: provider slot N uses the block
+ * [offset, offset + PROVIDER_ID_BLOCK). The first provider has offset 0, so its IDs never change.
+ */
+export const PROVIDER_ID_BLOCK = 10_000_000;
+
+export function toPublicServiceId(offset: number, providerServiceId: string | number): string | null {
+  const id = Number(providerServiceId);
+  if (!Number.isInteger(id) || id < 0 || id >= PROVIDER_ID_BLOCK) return null;
+  return String(offset + id);
+}
+
+export function fromPublicServiceId(publicId: string | number): { offset: number; providerServiceId: string } | null {
+  const id = Number(publicId);
+  if (!Number.isInteger(id) || id < 0) return null;
+  const offset = Math.floor(id / PROVIDER_ID_BLOCK) * PROVIDER_ID_BLOCK;
+  return { offset, providerServiceId: String(id - offset) };
+}

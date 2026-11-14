@@ -50,7 +50,7 @@ test("health reports dependency configuration without secrets", async () => {
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.ok, true);
-  assert.deepEqual(body.dependencies, { supabase: false, smmProvider: false, liveOrders: false });
+  assert.deepEqual(body.dependencies, { supabase: false, smmProvider: false, smmProviders: 0, liveOrders: false });
   assert.doesNotMatch(JSON.stringify(body), /key|secret/i);
 });
 

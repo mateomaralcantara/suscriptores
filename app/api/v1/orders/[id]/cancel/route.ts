@@ -5,7 +5,7 @@ import {
   getUserFromRequest,
   supabaseRpc,
 } from "@/lib/supabase-server";
-import { cancelSmmOrders } from "@/lib/providers/smm-panel";
+import { cancelProviderOrders, providerForOrder } from "@/lib/providers/smm-panel";
 import { canCancelOrder } from "@/lib/order-status";
 import { internalError } from "@/lib/api";
 
@@ -25,7 +25,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    const provider = await cancelSmmOrders(String(order.provider_order_id));
+    const orderProvider = providerForOrder(order);
+    if (!orderProvider) return NextResponse.json({ success: false, error: "El proveedor de este pedido ya no está configurado." }, { status: 409 });
+    const provider = await cancelProviderOrders(orderProvider, String(order.provider_order_id));
     // The refund is applied when the provider reports the order as canceled (see apply_provider_status).
     const status = await supabaseRpc<string>("request_order_cancel", { p_order_id: order.id, p_payload: { provider } });
     return NextResponse.json({ success: true, status, provider }, { status: 202 });

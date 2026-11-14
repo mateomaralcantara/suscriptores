@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureProfileForUser, getOrderForProfile, getUserFromRequest } from "@/lib/supabase-server";
-import { requestSmmRefill } from "@/lib/providers/smm-panel";
+import { providerForOrder, requestProviderRefill } from "@/lib/providers/smm-panel";
 import { canRefillOrder } from "@/lib/order-status";
 import { internalError } from "@/lib/api";
 
@@ -20,7 +20,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       );
     }
 
-    const provider = await requestSmmRefill(String(order.provider_order_id));
+    const orderProvider = providerForOrder(order);
+    if (!orderProvider) return NextResponse.json({ success: false, error: "El proveedor de este pedido ya no está configurado." }, { status: 409 });
+    const provider = await requestProviderRefill(orderProvider, String(order.provider_order_id));
     return NextResponse.json({ success: true, provider }, { status: 202 });
   } catch (error) {
     return internalError("orders/:id/refill", error, 502);

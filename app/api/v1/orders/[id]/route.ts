@@ -5,7 +5,7 @@ import {
   getUserFromRequest,
   supabaseRpc,
 } from "@/lib/supabase-server";
-import { getSmmOrderStatus } from "@/lib/providers/smm-panel";
+import { getProviderOrderStatus, providerForOrder } from "@/lib/providers/smm-panel";
 import { isTerminalStatus, normalizeProviderStatus } from "@/lib/order-status";
 import { internalError } from "@/lib/api";
 
@@ -19,9 +19,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     let order = await getOrderForProfile(profile.id, id);
     if (!order) return NextResponse.json({ success: false, error: "Pedido no encontrado." }, { status: 404 });
 
-    if (order.provider_order_id && !isTerminalStatus(order.status)) {
+    const orderProvider = providerForOrder(order);
+    if (order.provider_order_id && orderProvider && !isTerminalStatus(order.status)) {
       try {
-        const provider = await getSmmOrderStatus(order.provider_order_id);
+        const provider = await getProviderOrderStatus(orderProvider, order.provider_order_id);
         const normalized = normalizeProviderStatus(provider.status);
         if (normalized && normalized !== order.status) {
           // Status change and any refund (canceled/partial) happen atomically in the database.

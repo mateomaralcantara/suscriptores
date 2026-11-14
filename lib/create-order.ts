@@ -1,6 +1,7 @@
 import { errorMessage } from "@/lib/api";
 import { billableQuantity, isHttpUrl, orderCostMinor, parseDripFeed } from "@/lib/order-status";
-import { applySmmMarkup, createSmmOrder, getSmmServicesCached, smmLiveOrdersEnabled, SmmPanelError } from "@/lib/providers/smm-panel";
+import { applyMarkup } from "@/lib/order-status";
+import { createProviderOrder, findCatalogService, smmLiveOrdersEnabled, SmmPanelError } from "@/lib/providers/smm-panel";
 import { supabaseRpc, type ProfileRow } from "@/lib/supabase-server";
 
 export type OrderInput = {
@@ -38,25 +39,21 @@ export async function createLiveOrder(authUserId: string, profile: ProfileRow, i
   const dripFeed = parseDripFeed(input.runs, input.interval);
   if (typeof dripFeed === "string") return fail(400, dripFeed);
 
-  let service;
+  let found;
   try {
-    service = (await getSmmServicesCached()).find((item) => String(item.service) === serviceId);
+    found = await findCatalogService(serviceId);
   } catch (error) {
     console.error("[create-order] provider catalog", error);
     return fail(502, "El proveedor no respondió correctamente. Inténtalo de nuevo.");
   }
-  if (!service) return fail(404, "Servicio no encontrado.");
+  if (!found) return fail(404, "Servicio no encontrado.");
+  const { provider, service } = found;
   if (dripFeed && !service.dripfeed) return fail(400, "Este servicio no admite drip-feed.");
-
-  const min = Number(service.min);
-  const max = Number(service.max);
-  const providerRate = Number(service.rate);
-  if (!Number.isFinite(min) || !Number.isFinite(max) || quantity < min || quantity > max) {
+  if (quantity < service.min || quantity > service.max) {
     return fail(400, `La cantidad debe estar entre ${service.min} y ${service.max}.`);
   }
-  if (!Number.isFinite(providerRate) || providerRate < 0) return fail(502, "El proveedor devolvió una tarifa inválida.");
 
-  const saleRate = applySmmMarkup(providerRate);
+  const saleRate = applyMarkup(service.providerRate, provider.markupPercent);
   const costMinor = orderCostMinor(saleRate, billableQuantity(quantity, dripFeed));
 
   let reservation: ReservationRow | undefined;
@@ -69,6 +66,9 @@ export async function createLiveOrder(authUserId: string, profile: ProfileRow, i
       p_cost_minor: costMinor,
       p_idempotency_key: idempotencyKey,
       p_metadata: {
+        provider: provider.key,
+        provider_name: provider.name,
+        provider_service_id: service.providerServiceId,
         service_name: service.name,
         category: service.category,
         type: service.type,
@@ -93,8 +93,8 @@ export async function createLiveOrder(authUserId: string, profile: ProfileRow, i
   if (reservation.is_existing) return { ok: true, status: 200, duplicate: true, order: summary(reservation.status) };
 
   try {
-    const providerOrder = await createSmmOrder({
-      service: serviceId, link, quantity, runs: dripFeed?.runs, interval: dripFeed?.interval,
+    const providerOrder = await createProviderOrder(provider, {
+      service: service.providerServiceId, link, quantity, runs: dripFeed?.runs, interval: dripFeed?.interval,
     });
     const providerOrderId = String(providerOrder.order ?? "").trim();
     if (!providerOrderId) throw new SmmPanelError("El proveedor no devolvió un ID de pedido.", true);

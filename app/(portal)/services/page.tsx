@@ -1,29 +1,25 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { SimpleTable } from "@/components/SimpleTable";
-import { applySmmMarkup, getSmmServices } from "@/lib/providers/smm-panel";
+import { getCatalog } from "@/lib/providers/smm-panel";
 import { inferPlatform } from "@/lib/order-services";
 
 export const dynamic = "force-dynamic";
 
 async function loadServices() {
   try {
-    const raw = await getSmmServices();
-    return { services: raw.map((service) => {
-      const providerRate = Number(service.rate);
-      const rate = applySmmMarkup(Number.isFinite(providerRate) ? providerRate : 0);
-      return {
-        id: String(service.service),
-        name: service.name,
-        category: service.category,
-        platform: inferPlatform(`${service.category} ${service.name}`),
-        rate,
-        min: Number(service.min),
-        max: Number(service.max),
-        refill: Boolean(service.refill),
-        cancel: Boolean(service.cancel),
-      };
-    }) };
+    const { data } = await getCatalog();
+    return { services: data.map((service) => ({
+      id: service.id,
+      name: service.name,
+      category: service.category,
+      platform: inferPlatform(`${service.category} ${service.name}`),
+      rate: service.rate,
+      min: service.min,
+      max: service.max,
+      refill: service.refill,
+      cancel: service.cancel,
+    })) };
   } catch (error) {
     console.error("[services] provider error", error);
     return { error: "No fue posible cargar el catálogo del proveedor. Inténtalo de nuevo en unos minutos." };

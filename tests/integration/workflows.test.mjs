@@ -64,7 +64,7 @@ test("every admin API route uses requireAdminApi", () => {
 test("every admin page that reads data calls requireAdmin()", () => {
   for (const file of walk("app/(portal)/admin").filter((f) => f.endsWith("page.tsx"))) {
     const source = fs.readFileSync(file, "utf8");
-    if (/serviceRoleRest|getSmm|listAll|AdminTransactionsTable/.test(source)) assert.match(source, /await requireAdmin\(\)/, file);
+    if (/serviceRoleRest|getSmm|getCatalog|getProvider|listAll|AdminTransactionsTable/.test(source)) assert.match(source, /await requireAdmin\(\)/, file);
   }
 });
 

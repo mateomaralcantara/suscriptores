@@ -1,44 +1,44 @@
 import { PageHeader } from "@/components/PageHeader";
 import { SimpleTable } from "@/components/SimpleTable";
-import { getSmmMarkupPercent, getSmmServices, isSmmConfigured } from "@/lib/providers/smm-panel";
-import { applyMarkup } from "@/lib/order-status";
+import { getCatalog, isSmmConfigured } from "@/lib/providers/smm-panel";
 import { requireAdmin } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
 async function load() {
   try {
-    return { services: await getSmmServices() };
+    return await getCatalog();
   } catch (error) {
     console.error("[admin/services]", error);
-    return { error: "No fue posible consultar el catálogo del proveedor." };
+    return null;
   }
 }
 
 export default async function AdminServicesPage() {
   await requireAdmin();
-  const markup = getSmmMarkupPercent();
-  if (!isSmmConfigured()) return <><PageHeader title="Servicios" description="Proveedor no configurado." /><div className="notice">Configura SMM_PANEL_API_URL y SMM_PANEL_API_KEY.</div></>;
-  const result = await load();
-  if (!("services" in result) || !result.services) return <><PageHeader title="Servicios" description="Proveedor no disponible." /><div className="notice">{result.error}</div></>;
+  if (!isSmmConfigured()) {
+    return <><PageHeader title="Servicios" description="Proveedor no configurado." /><div className="notice">Configura al menos SMM_PANEL_API_URL y SMM_PANEL_API_KEY.</div></>;
+  }
+  const catalog = await load();
+  if (!catalog) return <><PageHeader title="Servicios" description="Proveedores no disponibles." /><div className="notice">Ningún proveedor respondió.</div></>;
+
   return (
     <>
-      <PageHeader title="Servicios" description={`${result.services.length} servicios del proveedor. Margen aplicado: ${markup}% (SMM_MARKUP_PERCENT).`} />
+      <PageHeader title="Servicios" description={`${catalog.data.length} servicios de todos los proveedores (se muestran 1000).`} />
+      {catalog.failed.length > 0 ? <div className="notice" style={{ marginBottom: 18 }}>Sin respuesta: {catalog.failed.join(", ")}. Sus servicios no se muestran ni se pueden pedir.</div> : null}
       <SimpleTable
-        headers={["ID", "Servicio", "Categoría", "Coste / 1000", "Venta / 1000", "Rango", "Refill", "Cancelable"]}
-        rows={result.services.slice(0, 500).map((service) => {
-          const cost = Number(service.rate);
-          return [
-            String(service.service),
-            service.name,
-            service.category,
-            `US$${Number.isFinite(cost) ? cost.toFixed(4) : "?"}`,
-            `US$${Number.isFinite(cost) ? applyMarkup(cost, markup).toFixed(4) : "?"}`,
-            `${service.min}-${service.max}`,
-            service.refill ? "Sí" : "No",
-            service.cancel ? "Sí" : "No",
-          ];
-        })}
+        headers={["ID público", "Proveedor (ID)", "Servicio", "Categoría", "Coste / 1000", "Venta / 1000", "Rango", "Refill", "Cancelable"]}
+        rows={catalog.data.slice(0, 1000).map((service) => [
+          service.id,
+          `${service.providerName} (${service.providerServiceId})`,
+          service.name,
+          service.category,
+          `US$${service.providerRate.toFixed(4)}`,
+          `US$${service.rate.toFixed(4)}`,
+          `${service.min}-${service.max}`,
+          service.refill ? "Sí" : "No",
+          service.cancel ? "Sí" : "No",
+        ])}
       />
     </>
   );
