@@ -21,6 +21,7 @@ export function NewOrderPanel() {
   const router = useRouter();
   const [services, setServices] = useState<OrderService[]>([]);
   const [ordersEnabled, setOrdersEnabled] = useState(false);
+  const [pricing, setPricing] = useState<{ kind: string; discount: number }>({ kind: "list", discount: 0 });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [platform, setPlatform] = useState("All");
@@ -40,11 +41,12 @@ export function NewOrderPanel() {
     let active = true;
     fetch("/api/v1/services", { cache: "no-store" })
       .then(async (response) => {
-        const result = (await response.json()) as { success?: boolean; services?: OrderService[]; ordersEnabled?: boolean; error?: string };
+        const result = (await response.json()) as { success?: boolean; services?: OrderService[]; ordersEnabled?: boolean; error?: string; pricing?: string; discountPercent?: number };
         if (!response.ok || !result.success) throw new Error(result.error || "No fue posible cargar los servicios.");
         if (!active) return;
         setServices(result.services ?? []);
         setOrdersEnabled(Boolean(result.ordersEnabled));
+        setPricing({ kind: result.pricing ?? "list", discount: result.discountPercent ?? 0 });
       })
       .catch((err) => {
         if (active) setError(err instanceof Error ? err.message : "No fue posible cargar los servicios.");
@@ -260,6 +262,8 @@ export function NewOrderPanel() {
           <div className="field">
             <label>Cargo</label>
             <input className="charge-input" readOnly value={`US$${charge.toFixed(4)}`} />
+            {pricing.kind === "admin" ? <small>👑 Precio de administrador: pagas el coste del proveedor, sin margen.</small> : null}
+            {pricing.kind === "discount" ? <small>🏷️ Incluye tu descuento del {pricing.discount}%.</small> : null}
           </div>
 
           <button className="btn primary submit-order" disabled={submitting || !ordersEnabled || Boolean(quantityError)} type="submit">

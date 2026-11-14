@@ -3,7 +3,7 @@ import { internalError, readJsonObject } from "@/lib/api";
 import { BULK_MAX_ROWS, parseBulkOrders } from "@/lib/bulk-orders";
 import { createLiveOrder } from "@/lib/create-order";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
-import { ensureProfileForUser, getUserFromRequest } from "@/lib/supabase-server";
+import { ensureAdminProfile, getUserFromRequest } from "@/lib/supabase-server";
 
 /**
  * Mass orders. Each row goes through the same atomic reservation as a single order, with its own
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   if (rows.length > BULK_MAX_ROWS) return NextResponse.json({ success: false, error: `Máximo ${BULK_MAX_ROWS} pedidos por lote.` }, { status: 413 });
 
   try {
-    const profile = await ensureProfileForUser(user);
+    const profile = await ensureAdminProfile(user);
     const results = [];
     for (const row of rows) {
       const result = await createLiveOrder(user.id, profile, {

@@ -27,6 +27,7 @@ export type ProfileRow = {
   role: string;
   status: string;
   currency: string;
+  discount_percent?: number | string | null;
 };
 
 export type WalletRow = {
@@ -343,4 +344,10 @@ export async function countRows(table: string, filter: string) {
   if (!response.ok) await parseResponse(response);
   const total = Number(response.headers.get("content-range")?.split("/")[1]);
   return Number.isFinite(total) ? total : 0;
+}
+
+/** Pricing profile of a buyer: admins pay provider cost, customers get their personal discount. */
+export function buyerFromProfile(profile: Pick<ProfileRow, "role" | "discount_percent">) {
+  const discount = Number(profile.discount_percent ?? 0);
+  return { isAdmin: profile.role === "admin", discountPercent: Number.isFinite(discount) ? discount : 0 };
 }

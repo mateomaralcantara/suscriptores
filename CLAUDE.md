@@ -45,7 +45,7 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
 - `lib/create-order.ts` – **único** punto de creación de pedidos (panel, `/api/v2`, masivos): validar → precio → reservar → proveedor → confirmar/fallar.
 - `app/api/v2` + `lib/api-keys.ts` – API de revendedores en formato estándar v2; claves `gr_<prefijo>_<secreto>`, solo se guarda el hash.
 - `app/api/admin/*` – ajuste de saldo y conciliación de pedidos ambiguos (`requireAdminApi`).
-- `database/migrations/` – `001` esquema, `002` núcleo en vivo, `003` liquidación/reembolsos (+ corrección de `reserve_smm_order`), `004` recargas, ajustes, conciliación y tickets, `005` índices de claves API.
+- `database/migrations/` – `001` esquema, `002` núcleo en vivo, `003` liquidación/reembolsos (+ corrección de `reserve_smm_order`), `004` recargas, ajustes, conciliación y tickets, `005` índices de claves API, `006` descuento por cliente (`admin_set_discount`).
 
 ## Flujo de dinero
 
@@ -65,6 +65,7 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
 - Admin = correo en `ADMIN_EMAILS` **y** confirmado (`isAdminUser`), nunca solo el correo.
 - `lib/order-status.ts` y `lib/order-services.ts` no usan alias ni imports de runtime: las pruebas los importan directamente.
 - Varios proveedores: el ID público de servicio es `offset + ID del proveedor` (`toPublicServiceId`); el proveedor 1 tiene offset 0. Cada pedido guarda `metadata.provider`; usa siempre `providerForOrder(order)` para estado, cancelación y refill.
+- Precio: usa siempre `priceForBuyer` + `buyerFromProfile`. Admin paga el coste del proveedor; clientes pagan coste+margen menos su descuento, nunca por debajo del coste.
 - Drip-feed: se cobra `quantity × runs` (`billableQuantity`). Nunca envíes al proveedor más de lo que se reservó.
 - No muestres datos de ejemplo: un módulo sin backend usa `ComingSoon`.
 - Textos visibles al usuario en español.

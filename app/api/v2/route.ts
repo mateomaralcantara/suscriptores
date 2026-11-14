@@ -6,10 +6,10 @@
  */
 import { apiKeyMatches, parseApiKey, toApiV2Status } from "@/lib/api-keys";
 import { createLiveOrder } from "@/lib/create-order";
-import { cancelProviderOrders, getCatalog, providerForOrder, requestProviderRefill } from "@/lib/providers/smm-panel";
-import { canCancelOrder, canRefillOrder } from "@/lib/order-status";
+import { cancelProviderOrders, getCatalog, getSmmProviders, providerForOrder, requestProviderRefill } from "@/lib/providers/smm-panel";
+import { canCancelOrder, canRefillOrder, priceForBuyer } from "@/lib/order-status";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { findProfileByApiKey, getOrderForProfile, getWalletForProfile, supabaseRpc, type OrderRow, type ProfileRow } from "@/lib/supabase-server";
+import { buyerFromProfile, findProfileByApiKey, getOrderForProfile, getWalletForProfile, supabaseRpc, type OrderRow, type ProfileRow } from "@/lib/supabase-server";
 
 const reply = (data: unknown, status = 200) => Response.json(data, { status, headers: { "cache-control": "no-store" } });
 const error = (message: string, status = 200) => reply({ error: message }, status);
@@ -47,12 +47,14 @@ async function handle(profile: ProfileRow, params: Record<string, string>) {
   switch (params.action) {
     case "services": {
       const { data } = await getCatalog();
+      const buyer = buyerFromProfile(profile);
+      const markups = Object.fromEntries(getSmmProviders().map((provider) => [provider.key, provider.markupPercent]));
       return reply(data.map((service) => ({
         service: service.id,
         name: service.name,
         type: service.type,
         category: service.category,
-        rate: service.rate.toFixed(4),
+        rate: priceForBuyer(service.providerRate, markups[service.providerKey] ?? 0, buyer).toFixed(4),
         min: String(service.min),
         max: String(service.max),
         refill: service.refill,

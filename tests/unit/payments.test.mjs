@@ -134,3 +134,16 @@ test("formatDuration renders average delivery times in Spanish", async () => {
   assert.equal(formatDuration(null), "Sin datos todavía");
   assert.equal(formatDuration(-5), "Sin datos todavía");
 });
+
+test("priceForBuyer: admins pay cost, discounts never go below cost", async () => {
+  const { priceForBuyer } = await import("../../lib/order-status.ts");
+  const cost = 10;
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: true, discountPercent: 0 }), 10, "admin pays provider cost");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: true, discountPercent: 50 }), 10, "admin never below cost");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: 0 }), 13, "list price");
+  assert.ok(Math.abs(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: 10 }) - 11.7) < 1e-9, "10% off list");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: 50 }), 10, "big discount floors at cost");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: -20 }), 13, "negative discount ignored");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: Number.NaN }), 13);
+  assert.equal(priceForBuyer(-1, 30, { isAdmin: false, discountPercent: 0 }), 0);
+});

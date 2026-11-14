@@ -85,6 +85,13 @@ select pg_temp.assert_raises($$select public.set_ticket_status((select client_id
 select pg_temp.assert_eq(public.set_ticket_status((select client_id from ids), (select id from ticket), 'closed'), 'closed', 'customer can close own ticket');
 select pg_temp.assert_raises($$select public.add_ticket_message((select client_id from ids), (select id from ticket), 'otra vez', false)$$, 'ticket_closed', 'closed ticket rejects customer messages');
 
+-- Customer discounts
+select pg_temp.assert_eq(public.admin_set_discount((select admin_id from ids), (select client_id from ids), 12.5), 12.50::numeric, 'admin sets discount');
+select pg_temp.assert_eq((select discount_percent from profiles where id = (select client_id from ids)), 12.50::numeric, 'discount stored');
+select pg_temp.assert_raises($$select public.admin_set_discount((select admin_id from ids), (select client_id from ids), 150)$$, 'invalid_discount', 'discount over 100 rejected');
+select pg_temp.assert_raises($$select public.admin_set_discount((select other_id from ids), (select client_id from ids), 5)$$, 'not_admin', 'non-admin cannot set discounts');
+select pg_temp.assert_eq((select count(*) from audit_logs where action = 'profile.discount'), 1::bigint, 'discount change audited');
+
 -- Grants
 select pg_temp.assert_eq(has_function_privilege('authenticated', 'public.credit_wallet_topup(uuid,bigint,text,jsonb)', 'execute'), false, 'clients cannot credit themselves');
 select pg_temp.assert_eq(has_function_privilege('authenticated', 'public.admin_adjust_wallet(uuid,uuid,bigint,text)', 'execute'), false, 'clients cannot adjust balances');

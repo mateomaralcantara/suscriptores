@@ -98,3 +98,40 @@ export function ResolveOrderForm({ orderId }: { orderId: string }) {
     </div>
   );
 }
+
+export function DiscountForm({ profileId, current }: { profileId: string; current: number }) {
+  const router = useRouter();
+  const [value, setValue] = useState(String(current));
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  async function save() {
+    setState("saving");
+    try {
+      await postJson("/api/admin/users/discount", { profileId, discount: Number(value) });
+      setState("saved");
+      router.refresh();
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      <input
+        aria-label="Descuento %"
+        max={100}
+        min={0}
+        onChange={(event) => { setValue(event.target.value); setState("idle"); }}
+        step={0.5}
+        style={{ width: 70 }}
+        type="number"
+        value={value}
+      />
+      <span>%</span>
+      <button className="btn small" disabled={state === "saving" || Number(value) === current} onClick={save} type="button">
+        {state === "saving" ? "…" : state === "saved" ? "✓" : "Guardar"}
+      </button>
+      {state === "error" ? <small className="field-error">Error</small> : null}
+    </div>
+  );
+}

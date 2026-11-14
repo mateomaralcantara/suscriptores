@@ -148,3 +148,17 @@ export function formatDuration(minutes: number | null | undefined) {
   if (mins && days === 0) parts.push(`${mins} ${mins === 1 ? "minuto" : "minutos"}`);
   return parts.join(" ");
 }
+
+export type Buyer = { isAdmin: boolean; discountPercent: number };
+
+/**
+ * Sale price per 1000 for a given buyer. Admins pay the provider cost (no markup). Customers pay
+ * cost + markup minus their personal discount, but never less than the provider cost.
+ */
+export function priceForBuyer(providerRate: number, markupPercent: number, buyer: Buyer) {
+  if (!Number.isFinite(providerRate) || providerRate < 0) return 0;
+  if (buyer.isAdmin) return providerRate;
+  const list = applyMarkup(providerRate, markupPercent);
+  const discount = Number.isFinite(buyer.discountPercent) ? Math.min(Math.max(buyer.discountPercent, 0), 100) : 0;
+  return Math.max(providerRate, list * (1 - discount / 100));
+}

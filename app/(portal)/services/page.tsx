@@ -1,20 +1,23 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { SimpleTable } from "@/components/SimpleTable";
-import { getCatalog } from "@/lib/providers/smm-panel";
+import { getCatalog, getSmmProviders } from "@/lib/providers/smm-panel";
+import { priceForBuyer, type Buyer } from "@/lib/order-status";
+import { buyerFromProfile, ensureAdminProfile, getSessionProfile } from "@/lib/supabase-server";
 import { inferPlatform } from "@/lib/order-services";
 
 export const dynamic = "force-dynamic";
 
-async function loadServices() {
+async function loadServices(buyer: Buyer) {
   try {
     const { data } = await getCatalog();
+    const markups = Object.fromEntries(getSmmProviders().map((provider) => [provider.key, provider.markupPercent]));
     return { services: data.map((service) => ({
       id: service.id,
       name: service.name,
       category: service.category,
       platform: inferPlatform(`${service.category} ${service.name}`),
-      rate: service.rate,
+      rate: priceForBuyer(service.providerRate, markups[service.providerKey] ?? 0, buyer),
       min: service.min,
       max: service.max,
       refill: service.refill,
@@ -27,7 +30,9 @@ async function loadServices() {
 }
 
 export default async function ServicesPage() {
-  const result = await loadServices();
+  const { user } = await getSessionProfile();
+  const buyer = buyerFromProfile(await ensureAdminProfile(user));
+  const result = await loadServices(buyer);
   if (!("services" in result) || !result.services) {
     return (
       <>
@@ -43,7 +48,7 @@ export default async function ServicesPage() {
       <>
         <PageHeader
           title="Catálogo de servicios"
-          description={`${services.length} servicios cargados desde el proveedor conectado. Los precios incluyen el margen configurado.`}
+          description={`${services.length} servicios disponibles. ${buyer.isAdmin ? "Como administrador ves y pagas el precio de coste del proveedor." : buyer.discountPercent > 0 ? `Precios con tu descuento del ${buyer.discountPercent}%.` : "Precios por cada 1000 unidades."}`}
           action={<Link className="btn primary" href="/orders/new">Crear pedido</Link>}
         />
         <div className="grid four" style={{ marginBottom: 18 }}>

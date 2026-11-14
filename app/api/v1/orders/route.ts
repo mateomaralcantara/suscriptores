@@ -3,6 +3,7 @@ import {
   ensureProfileForUser,
   getUserFromRequest,
   listOrdersForProfile,
+  ensureAdminProfile,
 } from "@/lib/supabase-server";
 import { internalError, readJsonObject } from "@/lib/api";
 import { createLiveOrder } from "@/lib/create-order";
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
   if (!body) return NextResponse.json({ success: false, error: "El cuerpo debe ser un objeto JSON válido." }, { status: 400 });
 
   try {
-    const profile = await ensureProfileForUser(user);
+    const profile = await ensureAdminProfile(user);
     const result = await createLiveOrder(user.id, profile, {
       serviceId: body.serviceId,
       link: body.link,

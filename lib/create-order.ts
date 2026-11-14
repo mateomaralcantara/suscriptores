@@ -1,8 +1,8 @@
 import { errorMessage } from "@/lib/api";
 import { billableQuantity, isHttpUrl, orderCostMinor, parseDripFeed } from "@/lib/order-status";
-import { applyMarkup } from "@/lib/order-status";
+import { priceForBuyer } from "@/lib/order-status";
 import { createProviderOrder, findCatalogService, smmLiveOrdersEnabled, SmmPanelError } from "@/lib/providers/smm-panel";
-import { supabaseRpc, type ProfileRow } from "@/lib/supabase-server";
+import { buyerFromProfile, supabaseRpc, type ProfileRow } from "@/lib/supabase-server";
 
 export type OrderInput = {
   serviceId: unknown;
@@ -53,7 +53,8 @@ export async function createLiveOrder(authUserId: string, profile: ProfileRow, i
     return fail(400, `La cantidad debe estar entre ${service.min} y ${service.max}.`);
   }
 
-  const saleRate = applyMarkup(service.providerRate, provider.markupPercent);
+  const buyer = buyerFromProfile(profile);
+  const saleRate = priceForBuyer(service.providerRate, provider.markupPercent, buyer);
   const costMinor = orderCostMinor(saleRate, billableQuantity(quantity, dripFeed));
 
   let reservation: ReservationRow | undefined;
@@ -73,6 +74,7 @@ export async function createLiveOrder(authUserId: string, profile: ProfileRow, i
         category: service.category,
         type: service.type,
         sale_rate: saleRate,
+        pricing: buyer.isAdmin ? "admin_cost" : buyer.discountPercent > 0 ? `discount_${buyer.discountPercent}` : "list",
         profile_id: profile.id,
         ...(dripFeed ? { drip_feed: dripFeed, billable_quantity: billableQuantity(quantity, dripFeed) } : {}),
       },
