@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { NewOrderPanel } from "@/components/NewOrderPanel";
+import { ProviderBalances } from "@/components/ProviderBalances";
 import { money } from "@/lib/format";
 import { getCatalog } from "@/lib/providers/smm-panel";
-import { countRows, getSessionProfile, getWalletForProfile, listTransactionsForProfile } from "@/lib/supabase-server";
+import { countRows, getSessionProfile, isAdminUser, getWalletForProfile, listTransactionsForProfile } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ function Tile({ icon, value, label, href, action }: { icon: string; value: strin
 }
 
 export default async function NewOrderPage() {
-  const { profile } = await getSessionProfile();
+  const { user, profile } = await getSessionProfile();
   const stats = await loadStats(profile.id);
   const count = (value: number | null) => (value === null ? "—" : value.toLocaleString("es-DO"));
 
@@ -54,6 +55,7 @@ export default async function NewOrderPage() {
         <Tile icon="📈" value={money(stats.spent)} label="Total gastado" href="/transactions" action="MOVIMIENTOS" />
         <Tile icon="⋮" value={count(stats.activeServices)} label="Servicios activos" href="/services" action="TODOS LOS SERVICIOS" />
       </div>
+      {isAdminUser(user) ? <ProviderBalances /> : null}
       <div className="order-layout">
         <NewOrderPanel />
       </div>

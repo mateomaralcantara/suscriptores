@@ -288,3 +288,27 @@ export async function findCatalogService(publicId: string) {
   const service = data.find((item) => item.id === String(publicId));
   return service ? { provider, service } : null;
 }
+
+export type ProviderBalance = { key: string; name: string; balance: number | null; currency: string };
+
+let balancesCache: { at: number; data: ProviderBalance[] } | null = null;
+
+/** Balance available at each provider (admin only), cached for 30 s. A provider that fails shows balance null. */
+export async function getProviderBalances(maxAgeMs = 30_000): Promise<ProviderBalance[]> {
+  if (balancesCache && Date.now() - balancesCache.at < maxAgeMs) return balancesCache.data;
+  const providers = getSmmProviders();
+  const results = await Promise.allSettled(providers.map((provider) => getProviderBalance(provider)));
+  const data = providers.map((provider, index) => {
+    const result = results[index];
+    if (result.status === "rejected") console.error(`[providers] ${provider.name} balance`, result.reason);
+    const balance = result.status === "fulfilled" ? Number(result.value.balance) : Number.NaN;
+    return {
+      key: provider.key,
+      name: provider.name,
+      balance: Number.isFinite(balance) ? balance : null,
+      currency: result.status === "fulfilled" ? String(result.value.currency || "USD") : "USD",
+    };
+  });
+  balancesCache = { at: Date.now(), data };
+  return data;
+}

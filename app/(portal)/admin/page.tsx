@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
+import { ProviderBalances } from "@/components/ProviderBalances";
+import { requireAdmin } from "@/lib/supabase-server";
 import { isSmmConfigured, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 
 const modules = [
@@ -14,10 +16,12 @@ const modules = [
   ["Configuración", "/admin/settings"],
 ];
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  await requireAdmin();
   return (
     <>
       <PageHeader title="Administración" description="Control de la configuración y operación de la plataforma." />
+      <ProviderBalances />
       <div className="grid two">
         <section className="card">
           <h3>Estado del núcleo</h3>

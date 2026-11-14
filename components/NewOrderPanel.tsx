@@ -22,6 +22,7 @@ export function NewOrderPanel() {
   const [services, setServices] = useState<OrderService[]>([]);
   const [ordersEnabled, setOrdersEnabled] = useState(false);
   const [pricing, setPricing] = useState<{ kind: string; discount: number }>({ kind: "list", discount: 0 });
+  const [providerBalances, setProviderBalances] = useState<{ key: string; name: string; balance: number | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [platform, setPlatform] = useState("All");
@@ -41,12 +42,13 @@ export function NewOrderPanel() {
     let active = true;
     fetch("/api/v1/services", { cache: "no-store" })
       .then(async (response) => {
-        const result = (await response.json()) as { success?: boolean; services?: OrderService[]; ordersEnabled?: boolean; error?: string; pricing?: string; discountPercent?: number };
+        const result = (await response.json()) as { success?: boolean; services?: OrderService[]; ordersEnabled?: boolean; error?: string; pricing?: string; discountPercent?: number; providerBalances?: { key: string; name: string; balance: number | null }[] };
         if (!response.ok || !result.success) throw new Error(result.error || "No fue posible cargar los servicios.");
         if (!active) return;
         setServices([...(result.services ?? [])].sort(byPriceAsc));
         setOrdersEnabled(Boolean(result.ordersEnabled));
         setPricing({ kind: result.pricing ?? "list", discount: result.discountPercent ?? 0 });
+        setProviderBalances(result.providerBalances ?? []);
       })
       .catch((err) => {
         if (active) setError(err instanceof Error ? err.message : "No fue posible cargar los servicios.");
@@ -97,6 +99,9 @@ export function NewOrderPanel() {
   const useDripFeed = Boolean(selected?.dripfeed && dripFeed);
   const totalUnits = useDripFeed ? qty * runs : qty;
   const charge = selected && !quantityError ? (totalUnits / 1000) * selected.rate : 0;
+  // Admin only: balance of the provider behind the selected service, to catch "not enough funds" before ordering.
+  const providerBalance = selected?.providerKey ? providerBalances.find((item) => item.key === selected.providerKey) ?? null : null;
+  const providerShort = Boolean(providerBalance && providerBalance.balance !== null && charge > providerBalance.balance);
   // Best available average time: our own completed orders > provider API > estimate from the service name.
   const averageTime = !selected
     ? null
@@ -285,6 +290,12 @@ export function NewOrderPanel() {
             <label>Cargo</label>
             <input className="charge-input" readOnly value={`US$${charge.toFixed(4)}`} />
             {pricing.kind === "admin" ? <small>👑 Precio de administrador: pagas el coste del proveedor, sin margen.</small> : null}
+            {providerBalance ? (
+              <small className={providerShort ? "field-error" : undefined}>
+                🏦 Proveedor: {providerBalance.name} · saldo {providerBalance.balance === null ? "sin respuesta" : `US$${providerBalance.balance.toFixed(2)}`}
+                {providerShort ? " — no alcanza para este pedido: recarga el proveedor o elige otro servicio." : ""}
+              </small>
+            ) : null}
             {pricing.kind === "discount" ? <small>🏷️ Incluye tu descuento del {pricing.discount}%.</small> : null}
           </div>
 

@@ -81,3 +81,12 @@ test("no page ships demo data", () => {
     assert.doesNotMatch(fs.readFileSync(file, "utf8"), /demo-data|SandboxForm|sandbox_card/, file);
   }
 });
+
+test("provider identity and balances are only exposed to admins", () => {
+  const services = fs.readFileSync("app/api/v1/services/route.ts", "utf8");
+  assert.match(services, /buyer\.isAdmin \? \{ providerKey/);
+  assert.match(services, /buyer\.isAdmin \? \{ providerBalances/);
+  const newOrder = fs.readFileSync("app/(portal)/orders/new/page.tsx", "utf8");
+  assert.match(newOrder, /isAdminUser\(user\) \? <ProviderBalances/);
+  assert.match(fs.readFileSync("app/(portal)/admin/page.tsx", "utf8"), /await requireAdmin\(\)/);
+});

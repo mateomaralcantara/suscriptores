@@ -16,6 +16,8 @@ export type OrderService = {
   providerAverageMinutes?: number | null;
   startMinutes?: number | null;
   dailySpeed?: number | null;
+  providerKey?: string;
+  providerName?: string;
 };
 
 export const orderPlatforms = [

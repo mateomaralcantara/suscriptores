@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buyerFromProfile, ensureAdminProfile, getUserFromRequest } from "@/lib/supabase-server";
 import { byPriceAsc, priceForBuyer } from "@/lib/order-status";
-import { getCatalog, getSmmProviders, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
+import { getCatalog, getProviderBalances, getSmmProviders, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
 import { iconForPlatform, inferPlatform } from "@/lib/order-services";
 import { getAverageCompletionMinutes } from "@/lib/service-stats";
 
@@ -42,6 +42,8 @@ export async function GET(request: Request) {
         providerAverageMinutes: service.providerAverageMinutes,
         startMinutes: service.startMinutes,
         dailySpeed: service.dailySpeed,
+        // Provider identity is internal: only admins receive it.
+        ...(buyer.isAdmin ? { providerKey: service.providerKey, providerName: service.providerName } : {}),
       };
       })
       .sort(byPriceAsc);
@@ -52,6 +54,7 @@ export async function GET(request: Request) {
       count: services.length,
       ordersEnabled: smmLiveOrdersEnabled(),
       pricing: buyer.isAdmin ? "admin" : buyer.discountPercent > 0 ? "discount" : "list",
+      ...(buyer.isAdmin ? { providerBalances: await getProviderBalances().catch(() => []) } : {}),
       discountPercent: buyer.isAdmin ? 0 : buyer.discountPercent,
       services,
     });

@@ -222,3 +222,7 @@ textarea { min-height: 120px; resize: vertical; }
   .platform-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .field-error { color: #ff8a96; font-weight: 700; }
+
+.provider-balances { margin-top: -8px; }
+.tile-warning { border-color: rgba(255, 138, 150, .55); }
+.tile-warning strong { color: #ff8a96; }
