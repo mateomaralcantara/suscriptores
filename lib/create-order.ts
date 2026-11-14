@@ -116,6 +116,8 @@ export async function createLiveOrder(authUserId: string, profile: ProfileRow, i
       return fail(502, "El proveedor no confirmó la respuesta. El balance permanece reservado hasta conciliar el pedido.", reservation.public_id);
     }
     console.error("[create-order] provider rejected order", providerError);
-    return fail(502, "El proveedor rechazó el pedido. El balance reservado fue devuelto.", reservation.public_id);
+    // Admins see the provider's own reason (e.g. "Not enough funds on balance"); customers get a generic message.
+    const reason = buyer.isAdmin ? ` Motivo del proveedor (${provider.name}): ${message.slice(0, 200)}` : "";
+    return fail(502, `El proveedor rechazó el pedido. El balance reservado fue devuelto.${reason}`, reservation.public_id);
   }
 }
