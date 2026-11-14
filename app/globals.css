@@ -226,3 +226,10 @@ textarea { min-height: 120px; resize: vertical; }
 .provider-balances { margin-top: -8px; }
 .tile-warning { border-color: rgba(255, 138, 150, .55); }
 .tile-warning strong { color: #ff8a96; }
+
+/* Live order progress */
+.progress-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.progress-bar { height: 14px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--primary-2)); transition: width .6s ease; }
+.progress-fill.done { background: linear-gradient(90deg, #2fd08f, #1fae74); }
+.progress-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }

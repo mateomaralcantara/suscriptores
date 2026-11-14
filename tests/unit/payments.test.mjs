@@ -184,3 +184,15 @@ test("average time hints: durations, start times and speeds from provider data",
   assert.equal(estimateDeliveryMinutes(100, 5, null), 5);
   assert.equal(estimateDeliveryMinutes(100, null, null), null);
 });
+
+test("orderProgress turns provider start_count/remains into a progress bar", async () => {
+  const { orderProgress } = await import("../../lib/order-status.ts");
+  assert.deepEqual(orderProgress(1000, "processing", "270", "600"), { delivered: 400, remains: 600, percent: 40, startCount: 270, currentCount: 670 });
+  assert.deepEqual(orderProgress(1000, "queued", "0", "1000"), { delivered: 0, remains: 1000, percent: 0, startCount: 0, currentCount: 0 });
+  assert.equal(orderProgress(1000, "completed", "270", "35").percent, 100, "completed is always 100%");
+  assert.equal(orderProgress(1000, "queued", undefined, undefined).delivered, 0, "unknown remains = nothing yet");
+  assert.equal(orderProgress(1000, "queued", "", "").startCount, null);
+  assert.equal(orderProgress(1000, "processing", "5", "-20").remains, 0, "negative remains clamped");
+  assert.equal(orderProgress(1000, "processing", "5", "5000").remains, 1000, "remains above quantity clamped");
+  assert.equal(orderProgress(3, "processing", null, "2").percent, 33.3);
+});

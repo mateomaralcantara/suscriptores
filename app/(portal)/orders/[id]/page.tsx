@@ -3,7 +3,8 @@ import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { OrderActions } from "@/components/OrderActions";
-import { canCancelOrder, canRefillOrder } from "@/lib/order-status";
+import { OrderProgress } from "@/components/OrderProgress";
+import { canCancelOrder, canRefillOrder, STATUS_LABELS } from "@/lib/order-status";
 import { ensureProfileForUser, getCurrentUser, getOrderForProfile } from "@/lib/supabase-server";
 import { money } from "@/lib/format";
 
@@ -33,16 +34,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <div className="list-item"><span>Objetivo</span><strong>{order.target}</strong></div>
             <div className="list-item"><span>Cantidad</span><strong>{order.quantity.toLocaleString()}</strong></div>
             <div className="list-item"><span>Costo</span><strong>{money(order.cost_minor / 100)}</strong></div>
-            <div className="list-item"><span>Estado</span><StatusBadge status={order.status} /></div>
             <div className="list-item"><span>Proveedor</span><strong>{order.provider_order_id ? `#${order.provider_order_id}` : "Pendiente de confirmación"}</strong></div>
           </div>
         </section>
         <section className="card">
-          <h3>Seguimiento</h3>
-          <div className="list">
+          <h3>Progreso en vivo</h3>
+          <OrderProgress initialStatus={order.status} key={order.status} orderId={order.public_id} quantity={order.quantity} />
+          <div className="list" style={{ marginTop: 14 }}>
+            <div className="list-item"><span>Estado</span><span title={STATUS_LABELS[order.status] ?? order.status}><StatusBadge status={order.status} /></span></div>
             <div className="list-item"><span>Creado</span><strong>{new Date(order.created_at).toLocaleString("es-DO")}</strong></div>
             <div className="list-item"><span>Última actualización</span><strong>{new Date(order.updated_at).toLocaleString("es-DO")}</strong></div>
-            <div className="list-item"><span>Estado actual</span><StatusBadge status={order.status} /></div>
           </div>
           <OrderActions orderId={order.public_id} canCancel={canCancel} canRefill={canRefill} />
         </section>

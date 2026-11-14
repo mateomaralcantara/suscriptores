@@ -228,3 +228,38 @@ export function estimateDeliveryMinutes(quantity: number, startMinutes: number |
   const delivery = dailySpeed && dailySpeed > 0 && Number.isFinite(quantity) && quantity > 0 ? (quantity / dailySpeed) * 1440 : 0;
   return Math.round((startMinutes ?? 0) + delivery);
 }
+
+export const STATUS_LABELS: Record<string, string> = {
+  pending_provider: "Enviando al proveedor",
+  provider_unknown: "En revisión",
+  queued: "En cola",
+  processing: "En proceso",
+  cancel_requested: "Cancelación solicitada",
+  completed: "Completado",
+  partial: "Parcial",
+  canceled: "Cancelado",
+  failed: "Fallido",
+  refunded: "Reembolsado",
+};
+
+export type OrderProgress = { delivered: number; remains: number; percent: number; startCount: number | null; currentCount: number | null };
+
+/**
+ * Delivery progress from the provider's "start_count" and "remains" (strings in API v2).
+ * Completed orders are 100 %; unknown remains on an open order means nothing delivered yet.
+ */
+export function orderProgress(quantity: number, status: string, startCountRaw: unknown, remainsRaw: unknown): OrderProgress {
+  const startCount = Number(startCountRaw);
+  const remainsNumber = Number(remainsRaw);
+  const known = remainsRaw !== null && remainsRaw !== undefined && remainsRaw !== "" && Number.isFinite(remainsNumber);
+  const remains = status === "completed" ? 0 : known ? Math.min(Math.max(Math.trunc(remainsNumber), 0), quantity) : quantity;
+  const delivered = Math.max(0, quantity - remains);
+  const validStart = startCountRaw !== null && startCountRaw !== undefined && startCountRaw !== "" && Number.isFinite(startCount) && startCount >= 0 ? Math.trunc(startCount) : null;
+  return {
+    delivered,
+    remains,
+    percent: quantity > 0 ? Math.round((delivered / quantity) * 1000) / 10 : 0,
+    startCount: validStart,
+    currentCount: validStart === null ? null : validStart + delivered,
+  };
+}

@@ -5,8 +5,8 @@ import {
   getUserFromRequest,
   supabaseRpc,
 } from "@/lib/supabase-server";
-import { getProviderOrderStatus, providerForOrder } from "@/lib/providers/smm-panel";
-import { isTerminalStatus, normalizeProviderStatus } from "@/lib/order-status";
+import { getProviderOrderStatus, providerForOrder, type SmmOrderStatus } from "@/lib/providers/smm-panel";
+import { isTerminalStatus, normalizeProviderStatus, orderProgress } from "@/lib/order-status";
 import { internalError } from "@/lib/api";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -19,10 +19,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     let order = await getOrderForProfile(profile.id, id);
     if (!order) return NextResponse.json({ success: false, error: "Pedido no encontrado." }, { status: 404 });
 
+    // Live provider data (start count, remains) for the progress bar; stored data for finished orders.
+    let live: SmmOrderStatus | null = (order.metadata?.provider_status as SmmOrderStatus | undefined) ?? null;
+    let checkedAt: string | null = null;
+
     const orderProvider = providerForOrder(order);
     if (order.provider_order_id && orderProvider && !isTerminalStatus(order.status)) {
       try {
         const provider = await getProviderOrderStatus(orderProvider, order.provider_order_id);
+        live = provider;
+        checkedAt = new Date().toISOString();
         const normalized = normalizeProviderStatus(provider.status);
         if (normalized && normalized !== order.status) {
           // Status change and any refund (canceled/partial) happen atomically in the database.
@@ -41,7 +47,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       }
     }
 
-    return NextResponse.json({ success: true, data: order });
+    return NextResponse.json({
+      success: true,
+      data: order,
+      progress: { ...orderProgress(order.quantity, order.status, live?.start_count, live?.remains), checkedAt },
+    });
   } catch (error) {
     return internalError("orders/:id", error);
   }
