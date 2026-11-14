@@ -39,6 +39,9 @@ export async function GET(request: Request) {
         cancel: service.cancel,
         dripfeed: service.dripfeed,
         averageMinutes: averages[service.id] ?? null,
+        providerAverageMinutes: service.providerAverageMinutes,
+        startMinutes: service.startMinutes,
+        dailySpeed: service.dailySpeed,
       };
       })
       .sort(byPriceAsc);

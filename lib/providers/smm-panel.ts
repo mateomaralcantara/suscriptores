@@ -1,4 +1,4 @@
-import { applyMarkup, fromPublicServiceId, parseMarkupPercent, PROVIDER_ID_BLOCK, toPublicServiceId } from "@/lib/order-status";
+import { applyMarkup, fromPublicServiceId, parseDailySpeed, parseDurationText, parseMarkupPercent, parseStartMinutes, PROVIDER_ID_BLOCK, toPublicServiceId } from "@/lib/order-status";
 
 /**
  * Client for providers that speak the standard "SMM panel API v2" (Perfect Panel and compatible).
@@ -66,6 +66,11 @@ export type CatalogService = {
   refill: boolean;
   cancel: boolean;
   dripfeed: boolean;
+  /** Average time reported by the provider API, when it sends one (minutes). */
+  providerAverageMinutes: number | null;
+  /** Start time and units/day read from the service name, for estimates. */
+  startMinutes: number | null;
+  dailySpeed: number | null;
 };
 
 type ParamValue = string | number | boolean | null | undefined;
@@ -224,7 +229,20 @@ function toCatalogService(provider: SmmProvider, service: SmmService): CatalogSe
     refill: Boolean(service.refill),
     cancel: Boolean(service.cancel),
     dripfeed: Boolean(service.dripfeed),
+    providerAverageMinutes: providerAverage(service),
+    startMinutes: parseStartMinutes(service.name),
+    dailySpeed: parseDailySpeed(service.name),
   };
+}
+
+/** Some panels add an average time to their API v2 service list under different names. */
+function providerAverage(service: SmmService) {
+  const raw = service as unknown as Record<string, unknown>;
+  for (const key of ["average_time", "avg_time", "averageTime", "average", "time"]) {
+    const minutes = parseDurationText(raw[key]);
+    if (minutes !== null && minutes > 0) return minutes;
+  }
+  return null;
 }
 
 let catalogCache: { at: number; signature: string; data: CatalogService[]; failed: string[] } | null = null;

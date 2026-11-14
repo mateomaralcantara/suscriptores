@@ -13,6 +13,9 @@ export type OrderService = {
   cancel: boolean;
   dripfeed?: boolean;
   averageMinutes?: number | null;
+  providerAverageMinutes?: number | null;
+  startMinutes?: number | null;
+  dailySpeed?: number | null;
 };
 
 export const orderPlatforms = [

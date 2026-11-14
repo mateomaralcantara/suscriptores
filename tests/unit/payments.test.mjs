@@ -153,3 +153,34 @@ test("byPriceAsc sorts cheapest first with a stable tie-break", async () => {
   const list = [{ id: "30", rate: 2 }, { id: "10004893", rate: 25 }, { id: "12", rate: 0.04 }, { id: "5", rate: 2 }];
   assert.deepEqual(list.sort(byPriceAsc).map((s) => s.id), ["12", "5", "30", "10004893"]);
 });
+
+test("average time hints: durations, start times and speeds from provider data", async () => {
+  const { parseDurationText, parseStartMinutes, parseDailySpeed, estimateDeliveryMinutes } = await import("../../lib/order-status.ts");
+  assert.equal(parseDurationText("3 hours 57 minutes"), 237);
+  assert.equal(parseDurationText("1 day 2 hrs"), 1560);
+  assert.equal(parseDurationText("45 min"), 45);
+  assert.equal(parseDurationText("120"), 120);
+  assert.equal(parseDurationText(90), 90);
+  assert.equal(parseDurationText(""), null);
+  assert.equal(parseDurationText("soon"), null);
+
+  assert.equal(parseStartMinutes("Youtube Subscribers | Max 50K | ⌚ 0-1 Hour Start | 🚀 Daily 10-20K"), 30);
+  assert.equal(parseStartMinutes("Youtube Subscribers [Refill: 30D] [Max: 100K] [Start Time: 0 - 3 Hrs] [Speed: Up to 300/D]"), 90);
+  assert.equal(parseStartMinutes("Youtube Views | ⌚ 0-12 Hours Start | 🚀 Daily 100-150K"), 360);
+  assert.equal(parseStartMinutes("3015 | Youtube Subscribers | Max 20K | ⌚ Instant Start | 🚀 Daily 20K"), 5);
+  assert.equal(parseStartMinutes("Vistas de YouTube | Inicio de 0 a 3 horas | 2-3 mil diarios"), 90);
+  assert.equal(parseStartMinutes("Instagram Likes"), null);
+
+  assert.equal(parseDailySpeed("⌚ 0-1 Hour Start | 🚀 Daily 10-20K"), 15000);
+  assert.equal(parseDailySpeed("[Speed: Up to 300/D]"), 300);
+  assert.equal(parseDailySpeed("[Speed: Up to 20k/D]"), 20000);
+  assert.equal(parseDailySpeed("🚀 Daily 20K | ❌ No Refill"), 20000);
+  assert.equal(parseDailySpeed("Daily 300-500 | ♻️ 30 Days Refill"), 400);
+  assert.equal(parseDailySpeed("🚀 1-2K diarios"), 1500);
+  assert.equal(parseDailySpeed("2-3 mil diarios"), 2500);
+  assert.equal(parseDailySpeed("Instagram Likes"), null);
+
+  assert.equal(estimateDeliveryMinutes(5000, 30, 15000), 510, "5000 at 15K/day + 30 min start");
+  assert.equal(estimateDeliveryMinutes(100, 5, null), 5);
+  assert.equal(estimateDeliveryMinutes(100, null, null), null);
+});

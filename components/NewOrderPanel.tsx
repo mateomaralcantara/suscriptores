@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OrderService } from "@/lib/order-services";
 import { iconForPlatform, orderPlatforms } from "@/lib/order-services";
-import { byPriceAsc, formatDuration } from "@/lib/order-status";
+import { byPriceAsc, estimateDeliveryMinutes, formatDuration } from "@/lib/order-status";
 
 const PLATFORM_LABELS: Record<string, string> = {
   All: "Todo",
@@ -97,6 +97,17 @@ export function NewOrderPanel() {
   const useDripFeed = Boolean(selected?.dripfeed && dripFeed);
   const totalUnits = useDripFeed ? qty * runs : qty;
   const charge = selected && !quantityError ? (totalUnits / 1000) * selected.rate : 0;
+  // Best available average time: our own completed orders > provider API > estimate from the service name.
+  const averageTime = !selected
+    ? null
+    : selected.averageMinutes != null
+      ? { minutes: selected.averageMinutes, source: "Media real de los últimos pedidos completados" }
+      : selected.providerAverageMinutes != null
+        ? { minutes: selected.providerAverageMinutes, source: "Tiempo promedio informado por el proveedor" }
+        : (() => {
+            const estimate = estimateDeliveryMinutes(quantityError ? selected.min : totalUnits, selected.startMinutes ?? null, selected.dailySpeed ?? null);
+            return estimate === null ? null : { minutes: estimate, source: "Estimado según inicio y velocidad del servicio para esta cantidad", estimated: true };
+          })();
 
   function resetFor(next: OrderService | undefined) {
     setServiceId(next?.id ?? "");
@@ -266,7 +277,8 @@ export function NewOrderPanel() {
 
           <div className="field">
             <label title="Tiempo medio de los últimos 10 pedidos completados de este servicio">Tiempo promedio ⓘ</label>
-            <input readOnly value={formatDuration(selected.averageMinutes)} />
+            <input readOnly value={averageTime ? `${"estimated" in averageTime ? "≈ " : ""}${formatDuration(averageTime.minutes)}` : formatDuration(null)} />
+            {averageTime ? <small>{averageTime.source}</small> : null}
           </div>
 
           <div className="field">

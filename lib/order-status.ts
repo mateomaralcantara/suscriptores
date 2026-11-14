@@ -167,3 +167,64 @@ export function priceForBuyer(providerRate: number, markupPercent: number, buyer
 export function byPriceAsc<T extends { rate: number; id: string | number }>(a: T, b: T) {
   return a.rate - b.rate || Number(a.id) - Number(b.id);
 }
+
+// ---------------------------------------------------------------------------
+// Average delivery time hints taken from provider data.
+// ---------------------------------------------------------------------------
+
+const UNIT_MINUTES: Record<string, number> = { m: 1, min: 1, mins: 1, minute: 1, minutes: 1, minuto: 1, minutos: 1, h: 60, hr: 60, hrs: 60, hour: 60, hours: 60, hora: 60, horas: 60, d: 1440, day: 1440, days: 1440, dia: 1440, "día": 1440, dias: 1440, "días": 1440 };
+
+/** Parses "3 hours 57 minutes", "1 day 2 hrs", "45 min" or a plain number of minutes. */
+export function parseDurationText(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) && value >= 0 ? value : null;
+  if (typeof value !== "string" || !value.trim()) return null;
+  if (/^\s*\d+(\.\d+)?\s*$/.test(value)) return Number(value);
+  let total = 0;
+  let found = false;
+  for (const match of value.toLowerCase().matchAll(/(\d+(?:\.\d+)?)\s*(minutos?|minutes?|mins?|m|horas?|hours?|hrs?|h|días?|dias?|days?|d)\b/g)) {
+    total += Number(match[1]) * (UNIT_MINUTES[match[2]] ?? 0);
+    found = true;
+  }
+  return found ? total : null;
+}
+
+/** Start time from a service name, in minutes (middle of the range): "0-1 Hour Start", "Start Time: 0 - 3 Hrs", "Instant Start". */
+export function parseStartMinutes(name: string): number | null {
+  const text = name.toLowerCase();
+  if (/instant/.test(text)) return 5;
+  const range = text.match(/(\d+(?:\.\d+)?)\s*(?:-|–|to|a)\s*(\d+(?:\.\d+)?)\s*(minutos?|minutes?|mins?|horas?|hours?|hrs?|h|días?|dias?|days?)\b(?:\s*(?:start|de inicio|inicio))?/);
+  const near = /(start|inicio)/.test(text);
+  if (range && near) return ((Number(range[1]) + Number(range[2])) / 2) * (UNIT_MINUTES[range[3]] ?? 60);
+  return null;
+}
+
+/** Units per day from a service name: "Daily 10-20K", "Speed: Up to 300/D", "1-2K diarios", "100K/day". Middle of ranges. */
+export function parseDailySpeed(name: string): number | null {
+  const text = name.toLowerCase().replace(/,/g, "");
+  const amount = (n: string, k?: string) => Number(n) * (k === "k" || k === "mil" ? 1000 : k === "m" ? 1_000_000 : 1);
+  const patterns = [
+    /daily\s*(\d+(?:\.\d+)?)\s*(k|m)?\s*(?:-|–)\s*(\d+(?:\.\d+)?)\s*(k|m)?/,
+    /(\d+(?:\.\d+)?)\s*(k|m|mil)?\s*(?:-|–)\s*(\d+(?:\.\d+)?)\s*(k|m|mil)?\s*(?:\/\s*d(?:ay)?\b|per day|diarios?|al día|daily)/,
+  ];
+  for (const pattern of patterns) {
+    const m = text.match(pattern);
+    if (m) {
+      const high = amount(m[3], m[4]);
+      const low = amount(m[1], m[2] ?? m[4]);
+      if (high > 0) return (low + high) / 2;
+    }
+  }
+  const single = text.match(/(?:daily|up to|speed:?\s*up to)\s*(\d+(?:\.\d+)?)\s*(k|m)?\b/) ?? text.match(/(\d+(?:\.\d+)?)\s*(k|m|mil)?\s*(?:\/\s*d(?:ay)?\b|per day|diarios?|daily)/);
+  if (single) {
+    const value = amount(single[1], single[2]);
+    return value > 0 ? value : null;
+  }
+  return null;
+}
+
+/** Estimated completion in minutes for a quantity: start time + quantity / daily speed. */
+export function estimateDeliveryMinutes(quantity: number, startMinutes: number | null, dailySpeed: number | null): number | null {
+  if (startMinutes === null && dailySpeed === null) return null;
+  const delivery = dailySpeed && dailySpeed > 0 && Number.isFinite(quantity) && quantity > 0 ? (quantity / dailySpeed) * 1440 : 0;
+  return Math.round((startMinutes ?? 0) + delivery);
+}
