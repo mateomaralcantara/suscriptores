@@ -5,7 +5,7 @@ import { SimpleTable } from "@/components/SimpleTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TopupForm, type TopupMethod } from "@/components/TopupForm";
 import { getBankAccounts, getBankTransferCurrency, getBankTransferRate, isBankTransferConfigured, listTopupRequestsForProfile } from "@/lib/bank-transfer";
-import { isNowPaymentsConfigured } from "@/lib/nowpayments";
+import { getNowPaymentsPayLabel, isNowPaymentsConfigured } from "@/lib/nowpayments";
 import { money } from "@/lib/format";
 import { TOPUP_MAX_MINOR, TOPUP_MIN_MINOR } from "@/lib/order-status";
 import { isStripeConfigured } from "@/lib/stripe";
@@ -59,7 +59,7 @@ export default async function AddFundsPage({ searchParams }: { searchParams: Pro
               rate={getBankTransferRate()}
             />
           ) : null}
-          {methods.length > 0 ? <TopupForm max={TOPUP_MAX_MINOR / 100} methods={methods} min={TOPUP_MIN_MINOR / 100} /> : null}
+          {methods.length > 0 ? <TopupForm cryptoLabel={getNowPaymentsPayLabel()} max={TOPUP_MAX_MINOR / 100} methods={methods} min={TOPUP_MIN_MINOR / 100} /> : null}
         </div>
       ) : (
         <div className="card" style={{ marginBottom: 18 }}>

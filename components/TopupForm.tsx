@@ -10,8 +10,8 @@ const METHODS: Record<TopupMethod, { label: string; endpoint: string; button: st
   crypto: {
     label: "₿ Criptomonedas (USDT, BTC, ETH y más)",
     endpoint: "/api/payments/crypto",
-    button: "Pagar con cripto",
-    note: "Pagas en NOWPayments con la moneda que elijas. El saldo se acredita solo cuando la red confirma el pago (de minutos a una hora).",
+    button: "Pagar con USDT / cripto",
+    note: "Pagas en NOWPayments desde tu wallet o exchange (Binance, etc.). El saldo se acredita solo cuando la red confirma el pago, normalmente en minutos.",
   },
   card: {
     label: "💳 Tarjeta",
@@ -21,11 +21,12 @@ const METHODS: Record<TopupMethod, { label: string; endpoint: string; button: st
   },
 };
 
-export function TopupForm({ min, max, methods }: { min: number; max: number; methods: TopupMethod[] }) {
+export function TopupForm({ min, max, methods, cryptoLabel }: { min: number; max: number; methods: TopupMethod[]; cryptoLabel?: string }) {
   const [method, setMethod] = useState<TopupMethod>(methods[0]);
   const [amount, setAmount] = useState("25");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const labelFor = (item: TopupMethod) => (item === "crypto" && cryptoLabel ? `₿ ${cryptoLabel}` : METHODS[item].label);
   const config = METHODS[method];
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -54,11 +55,11 @@ export function TopupForm({ min, max, methods }: { min: number; max: number; met
         <div className="field" style={{ marginBottom: 12 }}>
           <label htmlFor="method">Método de pago</label>
           <select id="method" onChange={(event) => setMethod(event.target.value as TopupMethod)} value={method}>
-            {methods.map((item) => <option key={item} value={item}>{METHODS[item].label}</option>)}
+            {methods.map((item) => <option key={item} value={item}>{labelFor(item)}</option>)}
           </select>
         </div>
       ) : (
-        <p className="muted" style={{ marginTop: 0 }}>{config.label}</p>
+        <p className="muted" style={{ marginTop: 0 }}>{labelFor(method)}</p>
       )}
       <div className="form-actions" style={{ marginBottom: 14 }}>
         {PRESETS.filter((value) => value >= min && value <= max).map((value) => (
