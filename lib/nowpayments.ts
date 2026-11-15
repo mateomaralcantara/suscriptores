@@ -25,7 +25,7 @@ export function isNowPaymentsConfigured() {
   return Boolean(process.env.NOWPAYMENTS_API_KEY?.trim() && process.env.NOWPAYMENTS_IPN_SECRET?.trim());
 }
 
-/** Creates a hosted invoice; the customer picks the coin on NOWPayments' page. */
+/** Creates a hosted NOWPayments invoice in the configured coin (USDT TRC20 by default). */
 export async function createCryptoInvoice(input: { profileId: string; amountMinor: number }) {
   const key = process.env.NOWPAYMENTS_API_KEY?.trim();
   if (!key) throw new Error("NOWPAYMENTS_API_KEY is not configured.");
