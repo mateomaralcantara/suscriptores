@@ -6,6 +6,9 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import { signStripePayload } from "../../lib/stripe-signature.ts";
+import { signNowPaymentsPayload } from "../../lib/nowpayments-signature.ts";
+
+const IPN_SECRET = "ipn_http_test_secret";
 
 const WEBHOOK_SECRET = "whsec_http_test_secret";
 const CRON_SECRET = "cron-secret-for-http-tests";
@@ -26,7 +29,7 @@ let base;
 before(async () => {
   const port = await freePort();
   base = `http://127.0.0.1:${port}`;
-  const env = { ...process.env, SUPABASE_URL: "", SUPABASE_ANON_KEY: "", SMM_PANEL_API_URL: "", SMM_PANEL_API_KEY: "", SMM_LIVE_ORDERS_ENABLED: "false", STRIPE_SECRET_KEY: "", STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, CRON_SECRET };
+  const env = { ...process.env, SUPABASE_URL: "", SUPABASE_ANON_KEY: "", SMM_PANEL_API_URL: "", SMM_PANEL_API_KEY: "", SMM_LIVE_ORDERS_ENABLED: "false", STRIPE_SECRET_KEY: "", STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, CRON_SECRET, NOWPAYMENTS_API_KEY: "", NOWPAYMENTS_IPN_SECRET: IPN_SECRET };
   server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", String(port), "-H", "127.0.0.1"], { stdio: "ignore", env });
   const deadline = Date.now() + 30000;
   while (Date.now() < deadline) {
@@ -81,7 +84,7 @@ test("every /api/v1 endpoint answers 401 without a session", async () => {
     ["GET", "/api/v1/services"], ["GET", "/api/v1/orders"], ["POST", "/api/v1/orders"], ["POST", "/api/v1/orders/bulk"],
     ["GET", "/api/v1/orders/ORD-1"], ["POST", "/api/v1/orders/ORD-1/cancel"], ["POST", "/api/v1/orders/ORD-1/refill"],
     ["GET", "/api/v1/balance"], ["GET", "/api/v1/transactions"], ["GET", "/api/auth/me"],
-    ["POST", "/api/payments/checkout"], ["GET", "/api/tickets"], ["POST", "/api/tickets"],
+    ["POST", "/api/payments/checkout"], ["POST", "/api/payments/crypto"], ["GET", "/api/tickets"], ["POST", "/api/tickets"],
     ["POST", "/api/admin/wallets/adjust"], ["POST", "/api/admin/orders/x/resolve"],
   ];
   for (const [method, path] of calls) {
@@ -187,4 +190,17 @@ test("reseller API v2 rejects missing, malformed and unknown keys", async () => 
 test("account API keys require a session", async () => {
   assert.equal((await fetch(`${base}/api/account/api-keys`)).status, 401);
   assert.equal((await post("/api/account/api-keys", { name: "x" })).status, 401);
+});
+
+test("NOWPayments IPN rejects bad signatures and only credits finished payments", async () => {
+  const ipn = (body, sig) => fetch(`${base}/api/webhooks/nowpayments`, { method: "POST", headers: { "content-type": "application/json", "x-nowpayments-sig": sig }, body: JSON.stringify(body) });
+  const waiting = { payment_id: 1, payment_status: "waiting", price_amount: 10, price_currency: "usd", order_id: "x" };
+  assert.equal((await ipn(waiting, "deadbeef")).status, 400, "bad signature");
+  const ok = await ipn(waiting, signNowPaymentsPayload(waiting, IPN_SECRET));
+  assert.equal(ok.status, 200);
+  assert.equal((await ok.json()).status, "waiting", "not credited before finished");
+  const unusable = { payment_id: 2, payment_status: "finished", price_amount: 10, price_currency: "usd", order_id: "forged" };
+  const res = await ipn(unusable, signNowPaymentsPayload(unusable, IPN_SECRET));
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).ignored, true, "order_id without a profile is ignored");
 });

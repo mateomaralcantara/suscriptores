@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/PageHeader";
 import { SimpleTable } from "@/components/SimpleTable";
-import { TopupForm } from "@/components/TopupForm";
+import { TopupForm, type TopupMethod } from "@/components/TopupForm";
+import { isNowPaymentsConfigured } from "@/lib/nowpayments";
 import { money } from "@/lib/format";
 import { TOPUP_MAX_MINOR, TOPUP_MIN_MINOR } from "@/lib/order-status";
 import { isStripeConfigured } from "@/lib/stripe";
@@ -16,6 +17,7 @@ export default async function AddFundsPage({ searchParams }: { searchParams: Pro
   const profile = await ensureProfileForUser(user);
   const [wallet, transactions] = await Promise.all([getWalletForProfile(profile.id), listTransactionsForProfile(profile.id)]);
   const topups = transactions.filter((tx) => tx.type === "topup");
+  const methods: TopupMethod[] = [...(isNowPaymentsConfigured() ? ["crypto" as const] : []), ...(isStripeConfigured() ? ["card" as const] : [])];
 
   return (
     <>
@@ -30,12 +32,12 @@ export default async function AddFundsPage({ searchParams }: { searchParams: Pro
           <h3>{money((wallet?.available_minor ?? 0) / 100)}</h3>
           <span className="muted">Reservado en pedidos en curso: {money((wallet?.reserved_minor ?? 0) / 100)}</span>
         </div>
-        {isStripeConfigured() ? (
-          <TopupForm max={TOPUP_MAX_MINOR / 100} min={TOPUP_MIN_MINOR / 100} />
+        {methods.length > 0 ? (
+          <TopupForm max={TOPUP_MAX_MINOR / 100} methods={methods} min={TOPUP_MIN_MINOR / 100} />
         ) : (
           <div className="card">
             <h3>Pagos no disponibles</h3>
-            <span className="muted">Los pagos con tarjeta aún no están configurados. Contacta con soporte para recargar tu saldo.</span>
+            <span className="muted">Los pagos en línea aún no están configurados. Contacta con soporte para recargar tu saldo.</span>
           </div>
         )}
       </div>
@@ -45,7 +47,7 @@ export default async function AddFundsPage({ searchParams }: { searchParams: Pro
       ) : (
         <SimpleTable
           headers={["Fecha", "Monto", "Referencia"]}
-          rows={topups.map((tx) => [new Date(tx.created_at).toLocaleString("es-DO"), money(tx.amount_minor / 100), tx.reference.replace(/^topup:/, "")])}
+          rows={topups.map((tx) => [new Date(tx.created_at).toLocaleString("es-DO"), money(tx.amount_minor / 100), tx.reference.replace(/^topup:(nowpayments:)?/, "")])}
         />
       )}
     </>

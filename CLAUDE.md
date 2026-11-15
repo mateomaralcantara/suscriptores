@@ -37,7 +37,8 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
 - `lib/providers/smm-panel.ts` – proveedores API v2 (hasta 5, ver `.env.example`), catálogo combinado `getCatalog()` y `providerForOrder()`. `SmmPanelError.ambiguous` = no se sabe si el pedido se creó.
 - `lib/order-status.ts` – reglas puras: estados, cancel/refill, reembolsos, margen y coste en centavos.
 - `lib/api.ts` – `json`, `readJsonObject`, `internalError` (registra el error y responde genérico).
-- `lib/stripe.ts` / `lib/stripe-signature.ts` – Checkout de recargas y verificación de firma del webhook.
+- `lib/nowpayments.ts` / `lib/nowpayments-signature.ts` – recargas con cripto (factura + IPN firmado HMAC-SHA512); acredita solo en `finished`, referencia `topup:nowpayments:<payment_id>`.
+- `lib/stripe.ts` / `lib/stripe-signature.ts` – Checkout de recargas con tarjeta (opcional) y verificación de firma del webhook.
 - `lib/order-sync.ts` – sincronización de pedidos abiertos (`/api/cron/sync-orders`, protegido con `CRON_SECRET`; lo llama `.github/workflows/sync-orders.yml`).
 - `lib/auth-cookies.ts` – cookies de sesión y renovación con el refresh token (la hace `proxy.ts`).
 - `lib/rate-limit.ts` – límite de intentos en memoria (login, registro, recuperación, checkout, tickets).

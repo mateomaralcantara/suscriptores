@@ -50,6 +50,7 @@ export const config = {
     "/api/tickets/:path*",
     "/api/account/:path*",
     "/api/payments/checkout",
+    "/api/payments/crypto",
     "/api/auth/me",
   ],
 };

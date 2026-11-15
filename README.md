@@ -21,7 +21,8 @@ La ruta `/orders/new` incluye ahora un panel profesional con:
 1. Copia `.env.example` a `.env.local` y completa Supabase y el proveedor.
 2. Aplica en Supabase (SQL editor), en orden: `database/migrations/001_initial.sql`, `002_live_core.sql`, `database/rls.sql`, `003_order_settlement.sql`, `004_payments_admin_support.sql`, `005_api_keys.sql` y `006_customer_discounts.sql`.
    **`003` es obligatoria:** corrige `reserve_smm_order` (sin ella todos los pedidos fallan) y añade los reembolsos por cancelación y entrega parcial.
-3. **Stripe:** crea un webhook a `<tu dominio>/api/webhooks/stripe` con los eventos `checkout.session.completed` y `checkout.session.async_payment_succeeded`, y pon `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`.
+3. **Cripto (NOWPayments, recomendado):** crea la cuenta, pon `NOWPAYMENTS_API_KEY` y `NOWPAYMENTS_IPN_SECRET`, configura tu wallet USDT para los cobros y la IPN `<tu dominio>/api/webhooks/nowpayments`.
+   **Stripe (opcional):** crea un webhook a `<tu dominio>/api/webhooks/stripe` con los eventos `checkout.session.completed` y `checkout.session.async_payment_succeeded`, y pon `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`.
 4. **Sincronización de pedidos:** define `CRON_SECRET` en la app y, en GitHub (*Settings → Secrets → Actions*), `APP_URL` y el mismo `CRON_SECRET`. El workflow `sync-orders.yml` la llama cada 10 minutos.
 5. **Más proveedores (opcional):** añade `SMM_PROVIDER_2_NAME`, `SMM_PROVIDER_2_API_URL` y `SMM_PROVIDER_2_API_KEY` (hasta el 5). Sus servicios aparecen con ID `10000000 + ID original` (proveedor 2), `20000000 + …` (proveedor 3), etc.
 6. Activa los pedidos reales con `SMM_LIVE_ORDERS_ENABLED=true` solo cuando lo anterior esté listo.

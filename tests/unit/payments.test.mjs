@@ -196,3 +196,24 @@ test("orderProgress turns provider start_count/remains into a progress bar", asy
   assert.equal(orderProgress(1000, "processing", "5", "5000").remains, 1000, "remains above quantity clamped");
   assert.equal(orderProgress(3, "processing", null, "2").percent, 33.3);
 });
+
+test("NOWPayments IPN signature: sorted-key HMAC-SHA512, timing-safe", async () => {
+  const { signNowPaymentsPayload, verifyNowPaymentsSignature, parseTopupOrderId } = await import("../../lib/nowpayments-signature.ts");
+  const secret = "ipn_test_secret";
+  const body = { payment_status: "finished", payment_id: 123, price_amount: 10, price_currency: "usd", order_id: "x", nested: { b: 2, a: 1 } };
+  const sig = signNowPaymentsPayload(body, secret);
+  assert.equal(sig.length, 128);
+  const reordered = JSON.stringify({ nested: { a: 1, b: 2 }, order_id: "x", price_currency: "usd", price_amount: 10, payment_id: 123, payment_status: "finished" });
+  assert.equal(verifyNowPaymentsSignature(reordered, sig, secret), true, "key order does not matter");
+  assert.equal(verifyNowPaymentsSignature(reordered, sig.toUpperCase(), secret), true, "hex case-insensitive");
+  assert.equal(verifyNowPaymentsSignature(reordered.replace("10", "1000"), sig, secret), false, "tampered amount");
+  assert.equal(verifyNowPaymentsSignature(reordered, sig, "other"), false, "wrong secret");
+  assert.equal(verifyNowPaymentsSignature("not json", sig, secret), false);
+  assert.equal(verifyNowPaymentsSignature(reordered, null, secret), false);
+
+  const profile = "8b0d6e0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
+  assert.equal(parseTopupOrderId(`${profile}:abcDEF123_-`), profile);
+  assert.equal(parseTopupOrderId("not-a-uuid:abcdef"), null);
+  assert.equal(parseTopupOrderId(`${profile}`), null);
+  assert.equal(parseTopupOrderId(42), null);
+});

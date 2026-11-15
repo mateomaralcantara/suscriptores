@@ -90,3 +90,11 @@ test("provider identity and balances are only exposed to admins", () => {
   assert.match(newOrder, /isAdminUser\(user\) \? <ProviderBalances/);
   assert.match(fs.readFileSync("app/(portal)/admin/page.tsx", "utf8"), /await requireAdmin\(\)/);
 });
+
+test("crypto top-ups authenticate and verify the IPN signature", () => {
+  assert.match(fs.readFileSync("app/api/payments/crypto/route.ts", "utf8"), /getUserFromRequest\(request\)/);
+  const ipn = fs.readFileSync("app/api/webhooks/nowpayments/route.ts", "utf8");
+  assert.match(ipn, /verifyNowPaymentsSignature/);
+  assert.match(ipn, /status !== "finished"/);
+  assert.match(ipn, /topup:nowpayments:/);
+});
