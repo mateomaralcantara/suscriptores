@@ -51,6 +51,7 @@ export const config = {
     "/api/account/:path*",
     "/api/payments/checkout",
     "/api/payments/crypto",
+    "/api/payments/bank-transfer",
     "/api/auth/me",
   ],
 };

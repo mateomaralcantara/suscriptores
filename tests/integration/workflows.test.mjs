@@ -98,3 +98,12 @@ test("crypto top-ups authenticate and verify the IPN signature", () => {
   assert.match(ipn, /status !== "finished"/);
   assert.match(ipn, /topup:nowpayments:/);
 });
+
+test("bank transfers: customers report, only admins approve, wallet credited in SQL", () => {
+  assert.match(fs.readFileSync("app/api/payments/bank-transfer/route.ts", "utf8"), /getUserFromRequest\(request\)/);
+  assert.match(fs.readFileSync("app/api/admin/topups/[id]/review/route.ts", "utf8"), /requireAdminApi\(request\)/);
+  const sql = fs.readFileSync("database/migrations/007_bank_transfers.sql", "utf8");
+  assert.match(sql, /perform public\.credit_wallet_topup/);
+  assert.match(sql, /if v_request\.status <> 'pending' then raise exception 'request_not_pending'/);
+  assert.doesNotMatch(fs.readFileSync(".env.example", "utf8"), /BANK_\d_ACCOUNT_NUMBER=\d/, "no real account numbers in the template");
+});

@@ -38,6 +38,7 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
 - `lib/order-status.ts` – reglas puras: estados, cancel/refill, reembolsos, margen y coste en centavos.
 - `lib/api.ts` – `json`, `readJsonObject`, `internalError` (registra el error y responde genérico).
 - `lib/nowpayments.ts` / `lib/nowpayments-signature.ts` – recargas con cripto (factura + IPN firmado HMAC-SHA512); acredita solo en `finished`, referencia `topup:nowpayments:<payment_id>`.
+- `lib/bank-transfer.ts` + `app/(portal)/admin/topups` – transferencias en moneda local (Popular, Banreservas…): el cliente reporta la referencia y un admin aprueba (`review_topup_request` acredita una sola vez) o rechaza. Cuentas y tasa en variables `BANK_*`.
 - `lib/stripe.ts` / `lib/stripe-signature.ts` – Checkout de recargas con tarjeta (opcional) y verificación de firma del webhook.
 - `lib/order-sync.ts` – sincronización de pedidos abiertos (`/api/cron/sync-orders`, protegido con `CRON_SECRET`; lo llama `.github/workflows/sync-orders.yml`).
 - `lib/auth-cookies.ts` – cookies de sesión y renovación con el refresh token (la hace `proxy.ts`).
@@ -46,7 +47,7 @@ Antes de dar por terminado un cambio, `npm run validate` debe pasar (y `npm run 
 - `lib/create-order.ts` – **único** punto de creación de pedidos (panel, `/api/v2`, masivos): validar → precio → reservar → proveedor → confirmar/fallar.
 - `app/api/v2` + `lib/api-keys.ts` – API de revendedores en formato estándar v2; claves `gr_<prefijo>_<secreto>`, solo se guarda el hash.
 - `app/api/admin/*` – ajuste de saldo y conciliación de pedidos ambiguos (`requireAdminApi`).
-- `database/migrations/` – `001` esquema, `002` núcleo en vivo, `003` liquidación/reembolsos (+ corrección de `reserve_smm_order`), `004` recargas, ajustes, conciliación y tickets, `005` índices de claves API, `006` descuento por cliente (`admin_set_discount`).
+- `database/migrations/` – `001` esquema, `002` núcleo en vivo, `003` liquidación/reembolsos (+ corrección de `reserve_smm_order`), `004` recargas, ajustes, conciliación y tickets, `005` índices de claves API, `006` descuento por cliente (`admin_set_discount`), `007` recargas por transferencia (`topup_requests`).
 
 ## Flujo de dinero
 

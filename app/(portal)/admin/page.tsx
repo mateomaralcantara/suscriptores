@@ -8,6 +8,7 @@ const modules = [
   ["Usuarios y saldos", "/admin/users"],
   ["Pedidos y conciliación", "/admin/orders"],
   ["Libro de movimientos", "/admin/transactions"],
+  ["Recargas por transferencia", "/admin/topups"],
   ["Pagos (recargas)", "/admin/payments"],
   ["Tickets de soporte", "/admin/tickets"],
   ["Servicios y margen", "/admin/services"],

@@ -217,3 +217,13 @@ test("NOWPayments IPN signature: sorted-key HMAC-SHA512, timing-safe", async () 
   assert.equal(parseTopupOrderId(`${profile}`), null);
   assert.equal(parseTopupOrderId(42), null);
 });
+
+test("localAmountMinor converts USD to whole pesos, rounding up", async () => {
+  const { localAmountMinor } = await import("../../lib/order-status.ts");
+  assert.equal(localAmountMinor(1000, 63), 63000, "US$10 at 63 = RD$630");
+  assert.equal(localAmountMinor(1050, 63.25), 66500, "US$10.50 at 63.25 = RD$664.13 -> RD$665");
+  assert.equal(localAmountMinor(500, 60), 30000);
+  assert.equal(localAmountMinor(0, 63), 0);
+  assert.equal(localAmountMinor(1000, 0), 0);
+  assert.equal(localAmountMinor(1000, Number.NaN), 0);
+});

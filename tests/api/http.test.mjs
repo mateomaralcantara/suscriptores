@@ -84,7 +84,8 @@ test("every /api/v1 endpoint answers 401 without a session", async () => {
     ["GET", "/api/v1/services"], ["GET", "/api/v1/orders"], ["POST", "/api/v1/orders"], ["POST", "/api/v1/orders/bulk"],
     ["GET", "/api/v1/orders/ORD-1"], ["POST", "/api/v1/orders/ORD-1/cancel"], ["POST", "/api/v1/orders/ORD-1/refill"],
     ["GET", "/api/v1/balance"], ["GET", "/api/v1/transactions"], ["GET", "/api/auth/me"],
-    ["POST", "/api/payments/checkout"], ["POST", "/api/payments/crypto"], ["GET", "/api/tickets"], ["POST", "/api/tickets"],
+    ["POST", "/api/payments/checkout"], ["POST", "/api/payments/crypto"], ["GET", "/api/payments/bank-transfer"], ["POST", "/api/payments/bank-transfer"],
+    ["POST", "/api/admin/topups/00000000-0000-0000-0000-000000000000/review"], ["GET", "/api/tickets"], ["POST", "/api/tickets"],
     ["POST", "/api/admin/wallets/adjust"], ["POST", "/api/admin/orders/x/resolve"],
   ];
   for (const [method, path] of calls) {

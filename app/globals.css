@@ -233,3 +233,8 @@ textarea { min-height: 120px; resize: vertical; }
 .progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary), var(--primary-2)); transition: width .6s ease; }
 .progress-fill.done { background: linear-gradient(90deg, #2fd08f, #1fae74); }
 .progress-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+
+/* Bank transfer box */
+.bank-box { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); }
+.bank-amount { display: grid; gap: 2px; margin-bottom: 10px; }
+.bank-amount strong { font-size: 26px; color: #2fd08f; }

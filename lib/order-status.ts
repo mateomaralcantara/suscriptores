@@ -263,3 +263,9 @@ export function orderProgress(quantity: number, status: string, startCountRaw: u
     currentCount: validStart === null ? null : validStart + delivered,
   };
 }
+
+/** Local-currency amount (minor units) for a USD top-up, rounded UP to a whole unit (e.g. RD$631.00). */
+export function localAmountMinor(usdMinor: number, rate: number) {
+  if (!Number.isFinite(usdMinor) || !Number.isFinite(rate) || usdMinor <= 0 || rate <= 0) return 0;
+  return Math.ceil(Math.round(usdMinor * rate * 1e4) / 1e4 / 100) * 100;
+}
