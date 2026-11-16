@@ -5,18 +5,19 @@ import { appUrl } from "@/lib/stripe";
 const API = "https://api.nowpayments.io/v1";
 
 /**
- * Coin the customer pays with. Default USDT on TRON (TRC20): stable value and low network fees.
- * Set NOWPAYMENTS_PAY_CURRENCY=any to let the customer choose any supported coin.
+ * Optional: force the coin on the invoice (e.g. "usdttrc20"). Off by default: forcing it has left
+ * NOWPayments' hosted page empty, so restrict coins in the NOWPayments dashboard (Settings > Coins)
+ * instead and let the customer pick among the enabled ones.
  */
 export function getNowPaymentsPayCurrency() {
-  const value = process.env.NOWPAYMENTS_PAY_CURRENCY?.trim().toLowerCase() || "usdttrc20";
+  const value = process.env.NOWPAYMENTS_PAY_CURRENCY?.trim().toLowerCase() || "any";
   return value === "any" ? null : value;
 }
 
 /** Human label for the configured coin. */
 export function getNowPaymentsPayLabel() {
   const coin = getNowPaymentsPayCurrency();
-  if (!coin) return "Criptomonedas (USDT, BTC, ETH y más)";
+  if (!coin) return "USDT y otras criptomonedas";
   const known: Record<string, string> = { usdttrc20: "USDT (red TRON · TRC20)", usdterc20: "USDT (red Ethereum · ERC20)", usdtbsc: "USDT (red BNB · BEP20)", usdtsol: "USDT (red Solana)" };
   return known[coin] ?? coin.toUpperCase();
 }
@@ -25,7 +26,7 @@ export function isNowPaymentsConfigured() {
   return Boolean(process.env.NOWPAYMENTS_API_KEY?.trim() && process.env.NOWPAYMENTS_IPN_SECRET?.trim());
 }
 
-/** Creates a hosted NOWPayments invoice in the configured coin (USDT TRC20 by default). */
+/** Creates a hosted NOWPayments invoice; the customer picks among the coins enabled in the dashboard. */
 export async function createCryptoInvoice(input: { profileId: string; amountMinor: number }) {
   const key = process.env.NOWPAYMENTS_API_KEY?.trim();
   if (!key) throw new Error("NOWPAYMENTS_API_KEY is not configured.");
@@ -39,8 +40,8 @@ export async function createCryptoInvoice(input: { profileId: string; amountMino
       order_id: `${input.profileId}:${randomBytes(9).toString("base64url")}`,
       order_description: "Recarga de saldo",
       ...(getNowPaymentsPayCurrency() ? { pay_currency: getNowPaymentsPayCurrency() } : {}),
-      // Network fees are added to what the customer pays, so the full USD amount reaches you.
-      is_fee_paid_by_user: process.env.NOWPAYMENTS_FEE_PAID_BY_USER?.trim().toLowerCase() !== "false",
+      // Optional: add network fees to what the customer pays (off by default, opt in with "true").
+      ...(process.env.NOWPAYMENTS_FEE_PAID_BY_USER?.trim().toLowerCase() === "true" ? { is_fee_paid_by_user: true } : {}),
       ipn_callback_url: `${appUrl()}/api/webhooks/nowpayments`,
       success_url: `${appUrl()}/add-funds?status=success`,
       cancel_url: `${appUrl()}/add-funds?status=canceled`,
