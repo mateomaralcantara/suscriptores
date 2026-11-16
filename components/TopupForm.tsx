@@ -21,13 +21,16 @@ const METHODS: Record<TopupMethod, { label: string; endpoint: string; button: st
   },
 };
 
-export function TopupForm({ min, max, methods, cryptoLabel }: { min: number; max: number; methods: TopupMethod[]; cryptoLabel?: string }) {
+export function TopupForm({ min: baseMin, max, methods, cryptoLabel, cryptoMin }: { min: number; max: number; methods: TopupMethod[]; cryptoLabel?: string; cryptoMin?: number }) {
   const [method, setMethod] = useState<TopupMethod>(methods[0]);
   const [amount, setAmount] = useState("25");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const labelFor = (item: TopupMethod) => (item === "crypto" && cryptoLabel ? `₿ ${cryptoLabel}` : METHODS[item].label);
   const config = METHODS[method];
+  // Crypto has a higher minimum (NOWPayments rejects small amounts).
+  const minFor = (item: TopupMethod) => (item === "crypto" && cryptoMin ? Math.max(cryptoMin, baseMin) : baseMin);
+  const min = minFor(method);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,7 +57,11 @@ export function TopupForm({ min, max, methods, cryptoLabel }: { min: number; max
       {methods.length > 1 ? (
         <div className="field" style={{ marginBottom: 12 }}>
           <label htmlFor="method">Método de pago</label>
-          <select id="method" onChange={(event) => setMethod(event.target.value as TopupMethod)} value={method}>
+          <select id="method" onChange={(event) => {
+            const next = event.target.value as TopupMethod;
+            setMethod(next);
+            if (Number(amount) < minFor(next)) setAmount(String(minFor(next)));
+          }} value={method}>
             {methods.map((item) => <option key={item} value={item}>{labelFor(item)}</option>)}
           </select>
         </div>

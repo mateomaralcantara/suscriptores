@@ -22,6 +22,16 @@ export function getNowPaymentsPayLabel() {
   return known[coin] ?? coin.toUpperCase();
 }
 
+/**
+ * Minimum crypto top-up in USD minor units. NOWPayments rejects invoices whose crypto amount, after
+ * its fees, is below the coin minimum (US$10 in USDT TRC20 failed with "less than minimal").
+ * NOWPAYMENTS_MIN_USD, default 20.
+ */
+export function getCryptoMinMinor() {
+  const value = Number(process.env.NOWPAYMENTS_MIN_USD ?? "20");
+  return Math.round((Number.isFinite(value) && value > 0 ? value : 20) * 100);
+}
+
 export function isNowPaymentsConfigured() {
   return Boolean(process.env.NOWPAYMENTS_API_KEY?.trim() && process.env.NOWPAYMENTS_IPN_SECRET?.trim());
 }
