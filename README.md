@@ -1,6 +1,6 @@
-# Growth Reseller Lab — panel completo sandbox
+# Suscriptores — Growth Reseller Lab
 
-Proyecto Next.js 16 con panel de pedidos, servicios, cartera, tickets, afiliados, paneles secundarios, administración y API REST sandbox.
+Panel Next.js 16 con autenticación y cartera en Supabase, catálogo y pedidos conectados a un proveedor SMM, administración y API REST autenticada.
 
 ## Cambio principal de esta entrega
 
@@ -13,10 +13,19 @@ La ruta `/orders/new` incluye ahora un panel profesional con:
 - mínimo y máximo dinámicos;
 - tiempo promedio;
 - cálculo automático del cargo;
-- validación y envío sandbox;
+- validación y envío al proveedor (si `SMM_LIVE_ORDERS_ENABLED=true`);
 - endpoint `/api/v1/services` usando el mismo catálogo.
 
-El panel está listo para consumir una API aprobada, pero no activa proveedores reales ni compra interacción artificial.
+## Configuración
+
+1. Copia `.env.example` a `.env.local` y completa Supabase y el proveedor.
+2. Aplica en Supabase (SQL editor), en orden: `database/migrations/001_initial.sql`, `002_live_core.sql`, `database/rls.sql`, `003_order_settlement.sql`, `004_payments_admin_support.sql`, `005_api_keys.sql`, `006_customer_discounts.sql` y `007_bank_transfers.sql`.
+   **`003` es obligatoria:** corrige `reserve_smm_order` (sin ella todos los pedidos fallan) y añade los reembolsos por cancelación y entrega parcial.
+3. **Cripto (NOWPayments, recomendado):** crea la cuenta, pon `NOWPAYMENTS_API_KEY` y `NOWPAYMENTS_IPN_SECRET`, configura tu wallet USDT para los cobros y la IPN `<tu dominio>/api/webhooks/nowpayments`.
+   **Stripe (opcional):** crea un webhook a `<tu dominio>/api/webhooks/stripe` con los eventos `checkout.session.completed` y `checkout.session.async_payment_succeeded`, y pon `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`.
+4. **Sincronización de pedidos:** define `CRON_SECRET` en la app y, en GitHub (*Settings → Secrets → Actions*), `APP_URL` y el mismo `CRON_SECRET`. El workflow `sync-orders.yml` la llama cada 10 minutos.
+5. **Más proveedores (opcional):** añade `SMM_PROVIDER_2_NAME`, `SMM_PROVIDER_2_API_URL` y `SMM_PROVIDER_2_API_KEY` (hasta el 5). Sus servicios aparecen con ID `10000000 + ID original` (proveedor 2), `20000000 + …` (proveedor 3), etc.
+6. Activa los pedidos reales con `SMM_LIVE_ORDERS_ENABLED=true` solo cuando lo anterior esté listo.
 
 ## Instalación limpia en Windows
 
@@ -30,9 +39,19 @@ Abrir: `http://localhost:3004/orders/new`
 ## Validación
 
 ```powershell
-npm run typecheck
-npm test
-npm run build
+npm run validate   # typecheck + lint + pruebas + build + pruebas HTTP
 ```
 
-Resultados de esta entrega: TypeScript correcto, 45 pruebas aprobadas y 45 páginas compiladas.
+Pruebas de base de datos (necesitan un PostgreSQL desechable; en CI se ejecutan solas):
+
+```powershell
+$env:DATABASE_URL="postgres://postgres:postgres@localhost:5432/postgres"; npm run test:db
+```
+
+## Claude Code
+
+El repositorio incluye `CLAUDE.md` y `.github/workflows/claude.yml`. Para activarlo:
+
+1. Instala la app de GitHub de Claude: https://github.com/apps/claude
+2. Añade el secreto `CLAUDE_CODE_OAUTH_TOKEN` (genéralo con `claude setup-token`) o `ANTHROPIC_API_KEY` en *Settings → Secrets and variables → Actions*.
+3. Menciona `@claude` en un issue o comentario de PR.

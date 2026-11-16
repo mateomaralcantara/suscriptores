@@ -3,12 +3,12 @@ import { Brand } from "@/components/Brand";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 const features = [
-  ["100 servicios demo", "Catálogo con precios, proveedores, filtros, calidad, refill y cancelación."],
-  ["Pedidos individuales y masivos", "Validación, costos, idempotencia, lotes y simulación de cola."],
-  ["Administración integral", "Usuarios, servicios, proveedores, pagos, auditoría, tickets y tenants."],
-  ["API REST sandbox", "Endpoints documentados, claves demo, webhooks y ejemplos de integración."],
-  ["Marca blanca", "Paneles secundarios con branding, monedas, idiomas y márgenes independientes."],
-  ["Contabilidad verificable", "Balance disponible, reservado, transacciones, bonos y reembolsos."],
+  ["Catálogo conectado", "Servicios sincronizados desde el proveedor configurado, con margen aplicado en el servidor."],
+  ["Pedidos con control de balance", "Reserva atómica de fondos antes de enviar cada pedido al proveedor."],
+  ["Autenticación Supabase", "Registro, inicio de sesión y recuperación de acceso con sesiones seguras."],
+  ["Seguimiento operativo", "Pedidos, estados, balance y transacciones almacenados en PostgreSQL/Supabase."],
+  ["Administración protegida", "Rutas administrativas restringidas por cuenta autorizada."],
+  ["Integración preparada para producción", "Variables privadas en servidor, health check y validación automática del repositorio."],
 ];
 
 export default function HomePage() {
@@ -17,32 +17,34 @@ export default function HomePage() {
       <div className="shell">
         <nav className="public-nav">
           <Brand />
-          <div className="nav-links"><Link href="#funciones">Funciones</Link><Link href="/api-docs">API</Link><Link href="/help">Ayuda</Link></div>
+          <div className="nav-links"><Link href="#funciones">Funciones</Link><Link href="/help">Ayuda</Link></div>
           <div className="nav-actions"><ThemeToggle /><Link className="btn" href="/login">Entrar</Link><Link className="btn primary" href="/register">Crear cuenta</Link></div>
         </nav>
+
         <section className="hero">
           <div>
-            <div className="eyebrow">CLASSROOM · SANDBOX · DEMO</div>
-            <h1>Opera, revende y administra desde un solo laboratorio.</h1>
-            <div className="lead">Una plataforma completa para gestionar servicios digitales legales, pedidos, proveedores simulados, balances, APIs, soporte, afiliados y paneles secundarios sin ejecutar acciones reales.</div>
-            <div className="hero-actions"><Link className="btn primary" href="/dashboard">Abrir dashboard</Link><Link className="btn" href="/services">Explorar servicios</Link></div>
+            <div className="eyebrow">PLATAFORMA DE SERVICIOS DIGITALES</div>
+            <h1>Gestiona servicios, pedidos y balance desde un solo panel.</h1>
+            <div className="lead">Una plataforma operativa conectada a Supabase y preparada para consumir proveedores externos desde el backend sin exponer credenciales al navegador.</div>
+            <div className="hero-actions"><Link className="btn primary" href="/register">Crear cuenta</Link><Link className="btn" href="/login">Iniciar sesión</Link></div>
           </div>
           <aside className="hero-card">
-            <div className="eyebrow">Resumen operativo</div>
-            <div className="hero-grid" style={{ marginTop: 18 }}>
-              <div className="metric"><span>Balance demo</span><strong>US$12,480</strong></div>
-              <div className="metric"><span>Pedidos activos</span><strong>184</strong></div>
-              <div className="metric"><span>Servicios</span><strong>100</strong></div>
-              <div className="metric"><span>Éxito</span><strong>98.4%</strong></div>
+            <div className="eyebrow">Arquitectura operativa</div>
+            <div className="list" style={{ marginTop: 18 }}>
+              <div className="list-item"><span>Autenticación</span><strong>Supabase</strong></div>
+              <div className="list-item"><span>Persistencia</span><strong>PostgreSQL</strong></div>
+              <div className="list-item"><span>Proveedor</span><strong>API server-side</strong></div>
+              <div className="list-item"><span>Seguridad de pedidos</span><strong>Reserva de balance</strong></div>
             </div>
-            <div className="notice" style={{ marginTop: 16 }}>Todo lo que ves funciona con datos simulados y endpoints sandbox.</div>
           </aside>
         </section>
+
         <section className="section" id="funciones">
-          <div className="section-title"><div><div className="eyebrow">Plataforma completa</div><h2>Más que una landing bonita.</h2></div><span className="muted">40+ rutas · 100 servicios · API sandbox</span></div>
+          <div className="section-title"><div><div className="eyebrow">Núcleo operativo</div><h2>Preparado para datos y operaciones reales.</h2></div></div>
           <div className="feature-grid">{features.map(([title, text]) => <article className="card" key={title}><h3>{title}</h3><p className="muted">{text}</p></article>)}</div>
         </section>
-        <footer className="footer"><div>Growth Reseller Lab · Modo demostración · <Link href="/terms">Términos</Link> · <Link href="/privacy">Privacidad</Link> · <Link href="/refund-policy">Reembolsos</Link></div></footer>
+
+        <footer className="footer"><div>Growth Reseller Lab · <Link href="/terms">Términos</Link> · <Link href="/privacy">Privacidad</Link> · <Link href="/refund-policy">Reembolsos</Link></div></footer>
       </div>
     </div>
   );

@@ -1,0 +1,229 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { signStripePayload, verifyStripeSignature } from "../../lib/stripe-signature.ts";
+import { parseTopupAmount } from "../../lib/order-status.ts";
+import { rateLimit } from "../../lib/rate-limit.ts";
+
+const secret = "whsec_test_secret";
+const payload = JSON.stringify({ id: "evt_1", type: "checkout.session.completed" });
+const now = 1_800_000_000;
+
+test("verifyStripeSignature accepts a valid signature", () => {
+  assert.equal(verifyStripeSignature(payload, signStripePayload(payload, secret, now), secret, now), true);
+});
+
+test("verifyStripeSignature accepts any matching v1 among several", () => {
+  const header = `t=${now},v1=${"0".repeat(64)},${signStripePayload(payload, secret, now).split(",")[1]}`;
+  assert.equal(verifyStripeSignature(payload, header, secret, now), true);
+});
+
+test("verifyStripeSignature rejects tampering, wrong secret, old timestamps and garbage", () => {
+  const header = signStripePayload(payload, secret, now);
+  assert.equal(verifyStripeSignature(payload + " ", header, secret, now), false, "modified body");
+  assert.equal(verifyStripeSignature(payload, header, "whsec_other", now), false, "wrong secret");
+  assert.equal(verifyStripeSignature(payload, header, secret, now + 301), false, "replay after tolerance");
+  assert.equal(verifyStripeSignature(payload, header, secret, now - 301), false, "timestamp from the future");
+  assert.equal(verifyStripeSignature(payload, null, secret, now), false, "missing header");
+  assert.equal(verifyStripeSignature(payload, "t=abc,v1=zz", secret, now), false, "garbage");
+  assert.equal(verifyStripeSignature(payload, `t=${now}`, secret, now), false, "no v1");
+  assert.equal(verifyStripeSignature(payload, header, "", now), false, "empty secret");
+});
+
+test("parseTopupAmount converts USD to cents within limits", () => {
+  assert.equal(parseTopupAmount(25), 2500);
+  assert.equal(parseTopupAmount("10.50"), 1050);
+  assert.equal(parseTopupAmount(5), 500);
+  assert.equal(parseTopupAmount(2000), 200000);
+  assert.equal(parseTopupAmount(0.1 + 0.2 + 9.7), 1000, "float noise tolerated");
+});
+
+test("parseTopupAmount rejects invalid amounts", () => {
+  for (const value of [4.99, 2000.01, 10.555, -5, 0, "abc", "", null, undefined, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(parseTopupAmount(value), null, String(value));
+  }
+});
+
+test("rateLimit blocks after the limit and resets after the window", () => {
+  const key = `test:${Math.random()}`;
+  for (let i = 0; i < 3; i += 1) assert.equal(rateLimit(key, 3, 1000, 0).ok, true);
+  const blocked = rateLimit(key, 3, 1000, 500);
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.retryAfterSeconds, 1);
+  assert.equal(rateLimit(key, 3, 1000, 1000).ok, true, "new window");
+});
+
+test("isCronAuthorized requires the exact bearer secret", async () => {
+  const { isCronAuthorized } = await import("../../lib/cron-auth.ts");
+  const secret = "s3cret-value-long-enough";
+  assert.equal(isCronAuthorized(`Bearer ${secret}`, secret), true);
+  assert.equal(isCronAuthorized(`Bearer ${secret}x`, secret), false);
+  assert.equal(isCronAuthorized(secret, secret), false, "missing Bearer");
+  assert.equal(isCronAuthorized(null, secret), false);
+  assert.equal(isCronAuthorized("Bearer short", "short"), false, "secrets under 16 chars are refused");
+  assert.equal(isCronAuthorized("Bearer ", undefined), false);
+});
+
+test("parseBulkOrders accepts | ; tab and comma separators", async () => {
+  const { parseBulkOrders } = await import("../../lib/bulk-orders.ts");
+  const { rows, errors } = parseBulkOrders("# comentario\n123 | https://a.com/p | 100\n456;https://b.com;200\n789\thttps://c.com\t300\n10, https://d.com/x?a=1, 50\n\n");
+  assert.deepEqual(errors, []);
+  assert.deepEqual(rows.map((r) => [r.line, r.serviceId, r.link, r.quantity]), [
+    [2, "123", "https://a.com/p", 100], [3, "456", "https://b.com", 200], [4, "789", "https://c.com", 300], [5, "10", "https://d.com/x?a=1", 50],
+  ]);
+});
+
+test("parseBulkOrders reports bad lines and the row limit", async () => {
+  const { parseBulkOrders } = await import("../../lib/bulk-orders.ts");
+  const { errors } = parseBulkOrders("abc | https://a.com | 10\n1 | https://a.com | -5\n1 | https://a.com");
+  assert.deepEqual(errors.map((e) => e.line), [1, 2, 3]);
+  const many = Array.from({ length: 101 }, () => "1 | https://a.com | 10").join("\n");
+  assert.ok(parseBulkOrders(many).errors.some((e) => e.line === 0));
+});
+
+test("drip-feed is validated and billed per run", async () => {
+  const { parseDripFeed, billableQuantity } = await import("../../lib/order-status.ts");
+  assert.equal(parseDripFeed(undefined, undefined), null);
+  assert.equal(parseDripFeed("", ""), null);
+  assert.deepEqual(parseDripFeed(5, 60), { runs: 5, interval: 60 });
+  assert.equal(typeof parseDripFeed(1, 60), "string", "1 run is not drip-feed");
+  assert.equal(typeof parseDripFeed(101, 60), "string");
+  assert.equal(typeof parseDripFeed(5, 0), "string");
+  assert.equal(typeof parseDripFeed(5, 1441), "string");
+  assert.equal(typeof parseDripFeed(2.5, 10), "string");
+  assert.equal(billableQuantity(500, { runs: 5, interval: 60 }), 2500);
+  assert.equal(billableQuantity(500, null), 500);
+});
+
+test("API keys: format, hashing and status mapping", async () => {
+  const { generateApiKey, parseApiKey, apiKeyMatches, hashApiKey, toApiV2Status } = await import("../../lib/api-keys.ts");
+  const { key, prefix, hash } = generateApiKey();
+  assert.match(key, /^gr_[a-f0-9]{12}_[A-Za-z0-9_-]{43}$/);
+  assert.equal(parseApiKey(key)?.prefix, prefix);
+  assert.equal(hash, hashApiKey(key));
+  assert.equal(apiKeyMatches(key, hash), true);
+  assert.equal(apiKeyMatches(key + "x", hash), false);
+  assert.equal(parseApiKey("gr_short_key"), null);
+  assert.notEqual(generateApiKey().key, key, "keys are random");
+  assert.equal(toApiV2Status("processing"), "In progress");
+  assert.equal(toApiV2Status("pending_provider"), "Pending");
+  assert.equal(toApiV2Status("failed"), "Canceled");
+  assert.equal(toApiV2Status("partial"), "Partial");
+});
+
+test("public service IDs never collide across providers and round-trip", async () => {
+  const { toPublicServiceId, fromPublicServiceId, PROVIDER_ID_BLOCK } = await import("../../lib/order-status.ts");
+  assert.equal(toPublicServiceId(0, 907), "907", "first provider keeps its IDs");
+  assert.equal(toPublicServiceId(PROVIDER_ID_BLOCK, 907), "10000907");
+  assert.notEqual(toPublicServiceId(0, 907), toPublicServiceId(PROVIDER_ID_BLOCK, 907));
+  assert.deepEqual(fromPublicServiceId("10000907"), { offset: PROVIDER_ID_BLOCK, providerServiceId: "907" });
+  assert.deepEqual(fromPublicServiceId(907), { offset: 0, providerServiceId: "907" });
+  assert.deepEqual(fromPublicServiceId("20000001"), { offset: 2 * PROVIDER_ID_BLOCK, providerServiceId: "1" });
+  assert.equal(toPublicServiceId(0, "abc"), null, "non-numeric provider IDs are skipped");
+  assert.equal(toPublicServiceId(0, PROVIDER_ID_BLOCK), null, "IDs that would overflow the block are skipped");
+  assert.equal(fromPublicServiceId("-1"), null);
+  assert.equal(fromPublicServiceId("1.5"), null);
+});
+
+test("formatDuration renders average delivery times in Spanish", async () => {
+  const { formatDuration } = await import("../../lib/order-status.ts");
+  assert.equal(formatDuration(237), "3 horas 57 minutos");
+  assert.equal(formatDuration(60), "1 hora");
+  assert.equal(formatDuration(1), "1 minuto");
+  assert.equal(formatDuration(0.2), "1 minuto", "never shows 0");
+  assert.equal(formatDuration(1500), "1 día 1 hora");
+  assert.equal(formatDuration(null), "Sin datos todavía");
+  assert.equal(formatDuration(-5), "Sin datos todavía");
+});
+
+test("priceForBuyer: admins pay cost, discounts never go below cost", async () => {
+  const { priceForBuyer } = await import("../../lib/order-status.ts");
+  const cost = 10;
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: true, discountPercent: 0 }), 10, "admin pays provider cost");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: true, discountPercent: 50 }), 10, "admin never below cost");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: 0 }), 13, "list price");
+  assert.ok(Math.abs(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: 10 }) - 11.7) < 1e-9, "10% off list");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: 50 }), 10, "big discount floors at cost");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: -20 }), 13, "negative discount ignored");
+  assert.equal(priceForBuyer(cost, 30, { isAdmin: false, discountPercent: Number.NaN }), 13);
+  assert.equal(priceForBuyer(-1, 30, { isAdmin: false, discountPercent: 0 }), 0);
+});
+
+test("byPriceAsc sorts cheapest first with a stable tie-break", async () => {
+  const { byPriceAsc } = await import("../../lib/order-status.ts");
+  const list = [{ id: "30", rate: 2 }, { id: "10004893", rate: 25 }, { id: "12", rate: 0.04 }, { id: "5", rate: 2 }];
+  assert.deepEqual(list.sort(byPriceAsc).map((s) => s.id), ["12", "5", "30", "10004893"]);
+});
+
+test("average time hints: durations, start times and speeds from provider data", async () => {
+  const { parseDurationText, parseStartMinutes, parseDailySpeed, estimateDeliveryMinutes } = await import("../../lib/order-status.ts");
+  assert.equal(parseDurationText("3 hours 57 minutes"), 237);
+  assert.equal(parseDurationText("1 day 2 hrs"), 1560);
+  assert.equal(parseDurationText("45 min"), 45);
+  assert.equal(parseDurationText("120"), 120);
+  assert.equal(parseDurationText(90), 90);
+  assert.equal(parseDurationText(""), null);
+  assert.equal(parseDurationText("soon"), null);
+
+  assert.equal(parseStartMinutes("Youtube Subscribers | Max 50K | ⌚ 0-1 Hour Start | 🚀 Daily 10-20K"), 30);
+  assert.equal(parseStartMinutes("Youtube Subscribers [Refill: 30D] [Max: 100K] [Start Time: 0 - 3 Hrs] [Speed: Up to 300/D]"), 90);
+  assert.equal(parseStartMinutes("Youtube Views | ⌚ 0-12 Hours Start | 🚀 Daily 100-150K"), 360);
+  assert.equal(parseStartMinutes("3015 | Youtube Subscribers | Max 20K | ⌚ Instant Start | 🚀 Daily 20K"), 5);
+  assert.equal(parseStartMinutes("Vistas de YouTube | Inicio de 0 a 3 horas | 2-3 mil diarios"), 90);
+  assert.equal(parseStartMinutes("Instagram Likes"), null);
+
+  assert.equal(parseDailySpeed("⌚ 0-1 Hour Start | 🚀 Daily 10-20K"), 15000);
+  assert.equal(parseDailySpeed("[Speed: Up to 300/D]"), 300);
+  assert.equal(parseDailySpeed("[Speed: Up to 20k/D]"), 20000);
+  assert.equal(parseDailySpeed("🚀 Daily 20K | ❌ No Refill"), 20000);
+  assert.equal(parseDailySpeed("Daily 300-500 | ♻️ 30 Days Refill"), 400);
+  assert.equal(parseDailySpeed("🚀 1-2K diarios"), 1500);
+  assert.equal(parseDailySpeed("2-3 mil diarios"), 2500);
+  assert.equal(parseDailySpeed("Instagram Likes"), null);
+
+  assert.equal(estimateDeliveryMinutes(5000, 30, 15000), 510, "5000 at 15K/day + 30 min start");
+  assert.equal(estimateDeliveryMinutes(100, 5, null), 5);
+  assert.equal(estimateDeliveryMinutes(100, null, null), null);
+});
+
+test("orderProgress turns provider start_count/remains into a progress bar", async () => {
+  const { orderProgress } = await import("../../lib/order-status.ts");
+  assert.deepEqual(orderProgress(1000, "processing", "270", "600"), { delivered: 400, remains: 600, percent: 40, startCount: 270, currentCount: 670 });
+  assert.deepEqual(orderProgress(1000, "queued", "0", "1000"), { delivered: 0, remains: 1000, percent: 0, startCount: 0, currentCount: 0 });
+  assert.equal(orderProgress(1000, "completed", "270", "35").percent, 100, "completed is always 100%");
+  assert.equal(orderProgress(1000, "queued", undefined, undefined).delivered, 0, "unknown remains = nothing yet");
+  assert.equal(orderProgress(1000, "queued", "", "").startCount, null);
+  assert.equal(orderProgress(1000, "processing", "5", "-20").remains, 0, "negative remains clamped");
+  assert.equal(orderProgress(1000, "processing", "5", "5000").remains, 1000, "remains above quantity clamped");
+  assert.equal(orderProgress(3, "processing", null, "2").percent, 33.3);
+});
+
+test("NOWPayments IPN signature: sorted-key HMAC-SHA512, timing-safe", async () => {
+  const { signNowPaymentsPayload, verifyNowPaymentsSignature, parseTopupOrderId } = await import("../../lib/nowpayments-signature.ts");
+  const secret = "ipn_test_secret";
+  const body = { payment_status: "finished", payment_id: 123, price_amount: 10, price_currency: "usd", order_id: "x", nested: { b: 2, a: 1 } };
+  const sig = signNowPaymentsPayload(body, secret);
+  assert.equal(sig.length, 128);
+  const reordered = JSON.stringify({ nested: { a: 1, b: 2 }, order_id: "x", price_currency: "usd", price_amount: 10, payment_id: 123, payment_status: "finished" });
+  assert.equal(verifyNowPaymentsSignature(reordered, sig, secret), true, "key order does not matter");
+  assert.equal(verifyNowPaymentsSignature(reordered, sig.toUpperCase(), secret), true, "hex case-insensitive");
+  assert.equal(verifyNowPaymentsSignature(reordered.replace("10", "1000"), sig, secret), false, "tampered amount");
+  assert.equal(verifyNowPaymentsSignature(reordered, sig, "other"), false, "wrong secret");
+  assert.equal(verifyNowPaymentsSignature("not json", sig, secret), false);
+  assert.equal(verifyNowPaymentsSignature(reordered, null, secret), false);
+
+  const profile = "8b0d6e0e-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
+  assert.equal(parseTopupOrderId(`${profile}:abcDEF123_-`), profile);
+  assert.equal(parseTopupOrderId("not-a-uuid:abcdef"), null);
+  assert.equal(parseTopupOrderId(`${profile}`), null);
+  assert.equal(parseTopupOrderId(42), null);
+});
+
+test("localAmountMinor converts USD to whole pesos, rounding up", async () => {
+  const { localAmountMinor } = await import("../../lib/order-status.ts");
+  assert.equal(localAmountMinor(1000, 63), 63000, "US$10 at 63 = RD$630");
+  assert.equal(localAmountMinor(1050, 63.25), 66500, "US$10.50 at 63.25 = RD$664.13 -> RD$665");
+  assert.equal(localAmountMinor(500, 60), 30000);
+  assert.equal(localAmountMinor(0, 63), 0);
+  assert.equal(localAmountMinor(1000, 0), 0);
+  assert.equal(localAmountMinor(1000, Number.NaN), 0);
+});

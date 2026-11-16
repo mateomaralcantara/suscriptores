@@ -1,10 +1,48 @@
-import { orders, services } from "@/lib/demo-data";
-import { json, safeBody } from "@/lib/api";
-export async function GET() { return json({ success: true, mode: "sandbox", total: orders.length, data: orders }); }
+import { NextResponse } from "next/server";
+import {
+  ensureProfileForUser,
+  getUserFromRequest,
+  listOrdersForProfile,
+  ensureAdminProfile,
+} from "@/lib/supabase-server";
+import { internalError, readJsonObject } from "@/lib/api";
+import { createLiveOrder } from "@/lib/create-order";
+
+export async function GET(request: Request) {
+  const user = await getUserFromRequest(request);
+  if (!user) return NextResponse.json({ success: false, error: "No autorizado." }, { status: 401 });
+
+  try {
+    const profile = await ensureProfileForUser(user);
+    const orders = await listOrdersForProfile(profile.id);
+    return NextResponse.json({ success: true, data: orders });
+  } catch (error) {
+    return internalError("orders", error);
+  }
+}
+
 export async function POST(request: Request) {
-  const body = await safeBody(request) as { serviceId?: string; target?: string; quantity?: number; idempotencyKey?: string };
-  const service = services.find((item) => item.id === body.serviceId) ?? services[0];
-  const quantity = Math.max(service.min, Math.min(service.max, Number(body.quantity ?? 100)));
-  const cost = Number(((service.userPrice * quantity) / 100).toFixed(2));
-  return json({ success: true, orderId: `ORD-DEMO-${Date.now()}`, status: "queued", cost, currency: "USD", mode: "sandbox", idempotencyKey: request.headers.get("Idempotency-Key") ?? body.idempotencyKey ?? null }, { status: 201 });
+  const user = await getUserFromRequest(request);
+  if (!user) return NextResponse.json({ success: false, error: "No autorizado." }, { status: 401 });
+
+  const body = await readJsonObject(request);
+  if (!body) return NextResponse.json({ success: false, error: "El cuerpo debe ser un objeto JSON válido." }, { status: 400 });
+
+  try {
+    const profile = await ensureAdminProfile(user);
+    const result = await createLiveOrder(user.id, profile, {
+      serviceId: body.serviceId,
+      link: body.link,
+      quantity: body.quantity,
+      runs: body.runs,
+      interval: body.interval,
+      idempotencyKey: request.headers.get("idempotency-key") ?? body.idempotencyKey,
+    });
+    if (!result.ok) {
+      return NextResponse.json({ success: false, error: result.error, ...(result.orderId ? { orderId: result.orderId } : {}) }, { status: result.status });
+    }
+    return NextResponse.json({ success: true, ...(result.duplicate ? { duplicate: true } : {}), order: result.order }, { status: result.status });
+  } catch (error) {
+    return internalError("orders", error);
+  }
 }

@@ -1,0 +1,24 @@
+name: Sync provider orders
+
+# Calls the app every 10 minutes so open orders pick up provider status changes and refunds.
+# Needs repository secrets APP_URL (e.g. https://tu-dominio.com) and CRON_SECRET (same value as the app).
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call sync endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "APP_URL o CRON_SECRET no configurados; se omite."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/cron/sync-orders"

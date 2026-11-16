@@ -1,2 +1,18 @@
 import { json } from "@/lib/api";
-export async function GET() { return json({ ok: true, service: "growth-reseller-lab", mode: "sandbox", timestamp: new Date().toISOString() }); }
+import { getSmmProviders, isSmmConfigured, smmLiveOrdersEnabled } from "@/lib/providers/smm-panel";
+import { isSupabaseConfigured } from "@/lib/supabase-server";
+
+export async function GET() {
+  return json({
+    ok: true,
+    service: "suscriptores",
+    mode: "live-core",
+    dependencies: {
+      supabase: isSupabaseConfigured(),
+      smmProvider: isSmmConfigured(),
+      smmProviders: getSmmProviders().length,
+      liveOrders: smmLiveOrdersEnabled(),
+    },
+    timestamp: new Date().toISOString(),
+  });
+}

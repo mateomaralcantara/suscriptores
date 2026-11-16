@@ -1,3 +1,5 @@
-import { PageHeader } from "@/components/PageHeader";
-import { SandboxForm } from "@/components/SandboxForm";
-export default function NewChildPanelPage() { return <><PageHeader title="Nuevo panel secundario" description="Configura nombre, dominio, idioma, moneda, plan y margen global." /><SandboxForm kind="panel" /></>; }
+import { ComingSoon } from "@/components/ComingSoon";
+
+export default function Page() {
+  return <ComingSoon title="Nuevo panel secundario" description="Paneles de revendedores con dominio propio." />;
+}
