@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { internalError, readJsonObject } from "@/lib/api";
-import { createCryptoInvoice, isNowPaymentsConfigured } from "@/lib/nowpayments";
+import { createCryptoInvoice, getCryptoMinMinor, isNowPaymentsConfigured } from "@/lib/nowpayments";
 import { parseTopupAmount, TOPUP_MAX_MINOR, TOPUP_MIN_MINOR } from "@/lib/order-status";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { ensureProfileForUser, getUserFromRequest } from "@/lib/supabase-server";
@@ -18,6 +18,10 @@ export async function POST(request: Request) {
   const body = await readJsonObject(request);
   if (!body) return NextResponse.json({ success: false, error: "El cuerpo debe ser un objeto JSON válido." }, { status: 400 });
   const amountMinor = parseTopupAmount(body.amount);
+  const cryptoMin = Math.max(getCryptoMinMinor(), TOPUP_MIN_MINOR);
+  if (amountMinor !== null && amountMinor < cryptoMin) {
+    return NextResponse.json({ success: false, error: `El mínimo para pagar con cripto es US$${cryptoMin / 100}.` }, { status: 400 });
+  }
   if (amountMinor === null) {
     return NextResponse.json(
       { success: false, error: `El monto debe estar entre US$${TOPUP_MIN_MINOR / 100} y US$${TOPUP_MAX_MINOR / 100}, con hasta 2 decimales.` },
