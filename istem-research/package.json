@@ -1,0 +1,34 @@
+{
+  "name": "istem-research",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ISTEM RESEARCH · Sistema Integral de Inteligencia, Investigación, Estudios de Opinión y Tecnología",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "next dev --webpack -p 3010",
+    "build": "next build",
+    "start": "next start -p 3010",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "node --test tests/unit/*.test.mjs tests/e2e/*.test.mjs",
+    "test:db": "bash tests/db/run.sh",
+    "test:api": "node --test tests/api/*.test.mjs",
+    "validate": "npm run typecheck && npm run lint && npm run test && npm run build && npm run test:api"
+  },
+  "dependencies": {
+    "next": "16.4.6",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "16.4.6",
+    "typescript": "^5.8.0"
+  }
+}

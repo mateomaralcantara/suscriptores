@@ -1,0 +1,13 @@
+# Desarrollo: PostgreSQL 16 + PostGIS desechable para `npm run test:db`.
+# La autenticación y la API REST de la app se obtienen con un proyecto Supabase (o `supabase start` con la CLI).
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "54329:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10

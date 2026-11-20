@@ -1,0 +1,38 @@
+name: ISTEM RESEARCH
+
+on:
+  push:
+    paths: ["istem-research/**", ".github/workflows/istem-research.yml"]
+  pull_request:
+    paths: ["istem-research/**", ".github/workflows/istem-research.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: istem-research
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: istem-research/package-lock.json
+      - run: npm ci
+      - run: npm run validate
+      - run: npm run test:db
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      - run: npm audit --omit=dev --audit-level=moderate
